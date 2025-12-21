@@ -22,6 +22,7 @@ from workflows.activities import (
     generate_response,
     referee_check,
     log_code_leak,
+    sanitize_input,
 )
 
 # Configure logging
@@ -79,6 +80,7 @@ async def main():
             generate_response,
             referee_check,
             log_code_leak,
+            sanitize_input,
         ],
         max_concurrent_activities=MAX_CONCURRENT_ACTIVITIES,
         max_concurrent_workflow_tasks=MAX_CONCURRENT_WORKFLOWS,
