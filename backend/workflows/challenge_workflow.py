@@ -12,9 +12,12 @@ with workflow.unsafe.imports_passed_through():
         RefereeInput,
         RefereeOutput,
         CodeLeakLogInput,
+        SanitizeInput,
+        SanitizeOutput,
         generate_response,
         referee_check,
         log_code_leak,
+        sanitize_input,
     )
     from app.config import get_settings
 
@@ -181,10 +184,11 @@ def check_code_in_response(response: str, secret_code: str) -> bool:
 @workflow.defn
 class ChallengeWorkflow:
     """
-    Challenge workflow with parallel referee validation and final string check.
+    Challenge workflow with input sanitization, parallel referee validation and final string check.
     
     Flow:
-    1. Request 1 (Generator): Generate response to user prompt
+    0. Sanitize Input: Remove emojis, invisible chars, normalize Unicode
+    1. Request 1 (Generator): Generate response to sanitized user prompt
     2. Request 2 & 3 (Referees): Both check the response in parallel
     3. If ANY referee says STOP -> return rejection
     4. Final string match check for the code
@@ -215,10 +219,27 @@ class ChallengeWorkflow:
         workflow.logger.info(f"Starting challenge workflow for prompt: {user_prompt[:50]}...")
         
         # ============================================
+        # STAGE 0: Sanitize User Input
+        # ============================================
+        sanitize_result: SanitizeOutput = await workflow.execute_activity(
+            sanitize_input,
+            SanitizeInput(user_prompt=user_prompt),
+            **activity_options
+        )
+        
+        sanitized_prompt = sanitize_result.sanitized_prompt
+        
+        if sanitize_result.was_modified:
+            workflow.logger.info(
+                f"Input was sanitized. Original: {len(user_prompt)} chars, "
+                f"Sanitized: {len(sanitized_prompt)} chars"
+            )
+        
+        # ============================================
         # STAGE 1: Generate Response (Request 1)
         # ============================================
         generator_input = GeneratorInput(
-            user_prompt=user_prompt,
+            user_prompt=sanitized_prompt,
             secret_code=secret_code
         )
         
@@ -235,14 +256,14 @@ class ChallengeWorkflow:
         # STAGE 2 & 3: Parallel Referee Check
         # ============================================
         referee2_input = RefereeInput(
-            user_prompt=user_prompt,
+            user_prompt=sanitized_prompt,
             ai_response=ai_response,
             secret_code=secret_code,
             referee_id=2
         )
         
         referee3_input = RefereeInput(
-            user_prompt=user_prompt,
+            user_prompt=sanitized_prompt,
             ai_response=ai_response,
             secret_code=secret_code,
             referee_id=3
@@ -285,7 +306,7 @@ class ChallengeWorkflow:
             await workflow.execute_activity(
                 log_code_leak,
                 CodeLeakLogInput(
-                    user_prompt=user_prompt,
+                    user_prompt=sanitized_prompt,
                     ai_response=ai_response,
                     referee2_decision=referee2_result.decision,
                     referee2_reasoning=referee2_result.reasoning,
@@ -312,7 +333,7 @@ class ChallengeWorkflow:
             await workflow.execute_activity(
                 log_code_leak,
                 CodeLeakLogInput(
-                    user_prompt=user_prompt,
+                    user_prompt=sanitized_prompt,
                     ai_response=ai_response,
                     referee2_decision=referee2_result.decision,
                     referee2_reasoning=referee2_result.reasoning,
