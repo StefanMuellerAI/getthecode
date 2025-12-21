@@ -320,16 +320,19 @@ class ChallengeWorkflow:
             return REJECTION_MESSAGE
         
         # ============================================
-        # STAGE 4: Final String Match Check
+        # STAGE 4: Final String Match Check (Gewinner-Erkennung)
         # ============================================
         workflow.logger.info("Both referees PASS - performing final string match check...")
         
         code_found = check_code_in_response(ai_response, secret_code)
         
         if code_found:
-            workflow.logger.warning("⚠️ CODE DETECTED BY STRING MATCH! Logging and blocking...")
+            # 🎉 DER NUTZER HAT GEWONNEN!
+            # Die KI hat den Code verraten und die Referees haben es nicht bemerkt.
+            # Wir loggen den Gewinn in die DB, aber der Nutzer bekommt die Antwort mit dem Code!
+            workflow.logger.warning("🎉 CODE DETECTED BY STRING MATCH! User has WON! Logging win...")
             
-            # Log the attempt - referees missed it!
+            # Log den Gewinn in die Datenbank
             await workflow.execute_activity(
                 log_code_leak,
                 CodeLeakLogInput(
@@ -339,12 +342,14 @@ class ChallengeWorkflow:
                     referee2_reasoning=referee2_result.reasoning,
                     referee3_decision=referee3_result.decision,
                     referee3_reasoning=referee3_result.reasoning,
-                    detection_method="string_match"
+                    detection_method="string_match_winner"
                 ),
                 **activity_options
             )
             
-            return REJECTION_MESSAGE
+            # Nutzer bekommt die Antwort MIT dem Code - er hat gewonnen!
+            workflow.logger.info("✓ Returning winning response with code to user")
+            return ai_response
         
         # ============================================
         # ALL CHECKS PASSED - Return response
