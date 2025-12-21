@@ -1,0 +1,162 @@
+services:
+  # PostgreSQL Database
+  postgresql:
+    image: postgres:15-alpine
+    container_name: getthecode-postgres
+    environment:
+      # SECURITY: No default values - must be set in .env file
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER must be set in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-getthecode}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    # SECURITY: Database only accessible within Docker network (no external port exposure)
+    # ports:
+    #   - "5432:5432"  # Uncomment only for local development if needed
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-getthecode}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - getthecode-network
+
+  # Temporal Server
+  temporal:
+    image: temporalio/auto-setup:1.22
+    container_name: getthecode-temporal
+    environment:
+      - DB=postgresql
+      - DB_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER:?POSTGRES_USER must be set in .env}
+      - POSTGRES_PWD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      - POSTGRES_SEEDS=postgresql
+    # SECURITY: Temporal only accessible within Docker network
+    # ports:
+    #   - "7233:7233"  # Uncomment only for local development if needed
+    expose:
+      - "7233"
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    networks:
+      - getthecode-network
+
+  # Temporal Web UI (optional, for debugging)
+  # SECURITY: Disabled by default in production - uncomment for local debugging only
+  # temporal-ui:
+  #   image: temporalio/ui:2.21.3
+  #   container_name: getthecode-temporal-ui
+  #   environment:
+  #     - TEMPORAL_ADDRESS=temporal:7233
+  #     - TEMPORAL_CORS_ORIGINS=http://localhost:3000
+  #   ports:
+  #     - "127.0.0.1:8080:8080"  # Bind to localhost only
+  #   depends_on:
+  #     - temporal
+  #   networks:
+  #     - getthecode-network
+
+  # PERFORMANCE: Redis for caching and distributed rate limiting
+  redis:
+    image: redis:7-alpine
+    container_name: getthecode-redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - getthecode-network
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: getthecode-backend
+    environment:
+      # SECURITY: No default values for sensitive data
+      - DATABASE_URL=postgresql://${POSTGRES_USER:?POSTGRES_USER must be set}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgresql:5432/${POSTGRES_DB:-getthecode}
+      - TEMPORAL_HOST=temporal
+      - TEMPORAL_PORT=7233
+      - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY must be set in .env}
+      - SECRET_CODE=${SECRET_CODE:?SECRET_CODE must be set in .env}
+      # PERFORMANCE: Redis for caching
+      - REDIS_URL=redis://redis:6379/0
+    # SECURITY: Backend only accessible within Docker network (frontend proxies requests)
+    # ports:
+    #   - "8000:8000"  # Uncomment only for local development if needed
+    expose:
+      - "8000"
+    depends_on:
+      - postgresql
+      - temporal
+      - redis
+    # SECURITY: Remove volume mount in production to prevent code injection
+    # volumes:
+    #   - ./backend:/app  # Uncomment only for local development
+    networks:
+      - getthecode-network
+
+  # Temporal Worker
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: getthecode-worker
+    command: python -m workflows.worker
+    environment:
+      - PYTHONUNBUFFERED=1
+      # SECURITY: No default values for sensitive data
+      - DATABASE_URL=postgresql://${POSTGRES_USER:?POSTGRES_USER must be set}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgresql:5432/${POSTGRES_DB:-getthecode}
+      - TEMPORAL_HOST=temporal
+      - TEMPORAL_PORT=7233
+      - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY must be set in .env}
+      - SECRET_CODE=${SECRET_CODE:?SECRET_CODE must be set in .env}
+    depends_on:
+      - temporal
+      - backend
+    # SECURITY: Remove volume mount in production to prevent code injection
+    # volumes:
+    #   - ./backend:/app  # Uncomment only for local development
+    networks:
+      - getthecode-network
+
+  # Next.js Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: getthecode-frontend
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - API_URL=http://backend:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    # SECURITY: Remove volume mounts in production
+    # volumes:
+    #   - ./frontend:/app
+    #   - /app/node_modules
+    #   - /app/.next
+    networks:
+      - getthecode-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  getthecode-network:
+    driver: bridge
+

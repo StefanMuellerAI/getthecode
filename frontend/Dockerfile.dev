@@ -1,0 +1,25 @@
+# ==============================================
+# Development Dockerfile for Frontend
+# ==============================================
+# This Dockerfile includes hot-reloading for development.
+# DO NOT use in production!
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY package.json package-lock.json* ./
+
+# Install dependencies
+RUN npm install
+
+# Copy application code
+COPY . .
+
+# Expose port
+EXPOSE 3000
+
+# Development mode with hot-reloading
+CMD ["npm", "run", "dev"]
+

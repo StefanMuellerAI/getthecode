@@ -1,0 +1,248 @@
+# ==============================================
+# Production Docker Compose for Get The Code
+# ==============================================
+# SECURITY: This configuration is hardened for production use
+#
+# Usage:
+#   1. Copy env.example to .env and fill in your values
+#   2. Place SSL certificates in ./nginx/ssl/
+#   3. Run: docker-compose -f docker-compose.prod.yml up -d
+#
+# SSL Certificate Setup:
+#   - Place your fullchain.pem and privkey.pem in ./nginx/ssl/
+#   - For Let's Encrypt, use certbot with DNS challenge or
+#     temporarily expose port 80 for HTTP challenge
+
+services:
+  # ===========================================
+  # NGINX Reverse Proxy (Public-Facing)
+  # ===========================================
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: getthecode-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # SSL certificates (required for HTTPS)
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      # Let's Encrypt webroot (for certificate renewal)
+      - ./nginx/certbot:/var/www/certbot:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - getthecode-network
+    # SECURITY: Read-only root filesystem
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
+
+  # ===========================================
+  # PostgreSQL Database (Internal Only)
+  # ===========================================
+  postgresql:
+    image: postgres:15-alpine
+    container_name: getthecode-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER must be set in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-getthecode}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    # SECURITY: No external port exposure
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - getthecode-network
+    # SECURITY: Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ===========================================
+  # Temporal Server (Internal Only)
+  # ===========================================
+  temporal:
+    image: temporalio/auto-setup:1.22
+    container_name: getthecode-temporal
+    restart: unless-stopped
+    environment:
+      - DB=postgresql
+      - DB_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER:?POSTGRES_USER must be set in .env}
+      - POSTGRES_PWD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      - POSTGRES_SEEDS=postgresql
+    # SECURITY: No external port exposure
+    expose:
+      - "7233"
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    networks:
+      - getthecode-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  # ===========================================
+  # Redis Cache (Internal Only)
+  # ===========================================
+  # PERFORMANCE: Redis for caching and distributed rate limiting
+  redis:
+    image: redis:7-alpine
+    container_name: getthecode-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - getthecode-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ===========================================
+  # FastAPI Backend (Internal Only)
+  # ===========================================
+  # PERFORMANCE: Multiple backend instances for load balancing
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      # SECURITY: Production mode enables strict validation
+      - ENVIRONMENT=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgresql:5432/${POSTGRES_DB:-getthecode}
+      - TEMPORAL_HOST=temporal
+      - TEMPORAL_PORT=7233
+      - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY must be set in .env}
+      - SECRET_CODE=${SECRET_CODE:?SECRET_CODE must be set in .env}
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://your-domain.com}
+      # PERFORMANCE: Redis for caching and distributed rate limiting
+      - REDIS_URL=redis://redis:6379/0
+      # PERFORMANCE: Adjust worker count based on instance
+      - WEB_CONCURRENCY=4
+    # SECURITY: No external port exposure
+    expose:
+      - "8000"
+    depends_on:
+      - postgresql
+      - temporal
+      - redis
+    networks:
+      - getthecode-network
+    # SECURITY: No volume mounts in production
+    # SECURITY: Read-only root filesystem
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      # PERFORMANCE: Scale to 2 backend replicas for load balancing
+      replicas: 2
+      resources:
+        limits:
+          memory: 512M
+
+  # ===========================================
+  # Temporal Workers (Internal Only)
+  # ===========================================
+  # PERFORMANCE: Multiple worker instances for parallel workflow processing
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: python -m workflows.worker
+    environment:
+      - PYTHONUNBUFFERED=1
+      # SECURITY: Production mode enables strict validation
+      - ENVIRONMENT=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgresql:5432/${POSTGRES_DB:-getthecode}
+      - TEMPORAL_HOST=temporal
+      - TEMPORAL_PORT=7233
+      - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY must be set in .env}
+      - SECRET_CODE=${SECRET_CODE:?SECRET_CODE must be set in .env}
+      # PERFORMANCE: Redis for any caching needs
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - temporal
+      - backend
+      - redis
+    networks:
+      - getthecode-network
+    # SECURITY: No volume mounts in production
+    # SECURITY: Read-only root filesystem
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      # PERFORMANCE: Scale to 3 worker replicas for parallel processing
+      replicas: 3
+      resources:
+        limits:
+          memory: 512M
+
+  # ===========================================
+  # Next.js Frontend (Internal Only)
+  # ===========================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: getthecode-frontend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - API_URL=http://backend:8000
+    # SECURITY: No external port exposure (nginx proxies)
+    expose:
+      - "3000"
+    depends_on:
+      - backend
+    networks:
+      - getthecode-network
+    # SECURITY: Read-only root filesystem
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+volumes:
+  postgres_data:
+    # SECURITY: Named volume for data persistence
+  redis_data:
+    # PERFORMANCE: Persist Redis data for cache warming on restart
+
+networks:
+  getthecode-network:
+    driver: bridge
+    # SECURITY: Internal network only
+    internal: false  # Set to true if you want complete network isolation
+

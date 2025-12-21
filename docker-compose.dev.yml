@@ -1,0 +1,172 @@
+# ==============================================
+# Development Docker Compose for Get The Code
+# ==============================================
+# This configuration includes all debugging tools and exposed ports
+# for local development. DO NOT use in production!
+#
+# Usage:
+#   1. Copy env.example to .env and fill in your values
+#   2. Run: docker-compose -f docker-compose.dev.yml up -d
+#
+# Available Services:
+#   - Frontend: http://localhost:3000
+#   - Backend API: http://localhost:8000
+#   - Temporal UI: http://localhost:8080
+#   - PostgreSQL: localhost:5432
+
+services:
+  # ===========================================
+  # PostgreSQL Database
+  # ===========================================
+  postgresql:
+    image: postgres:15-alpine
+    container_name: getthecode-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-devuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpassword123}
+      POSTGRES_DB: ${POSTGRES_DB:-getthecode}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-devuser}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - getthecode-network
+
+  # ===========================================
+  # Temporal Server
+  # ===========================================
+  temporal:
+    image: temporalio/auto-setup:1.22
+    container_name: getthecode-temporal
+    environment:
+      - DB=postgresql
+      - DB_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER:-devuser}
+      - POSTGRES_PWD=${POSTGRES_PASSWORD:-devpassword123}
+      - POSTGRES_SEEDS=postgresql
+    ports:
+      - "7233:7233"
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    networks:
+      - getthecode-network
+
+  # ===========================================
+  # Temporal Web UI (for debugging workflows)
+  # ===========================================
+  temporal-ui:
+    image: temporalio/ui:2.21.3
+    container_name: getthecode-temporal-ui
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:3000
+    ports:
+      - "8080:8080"
+    depends_on:
+      - temporal
+    networks:
+      - getthecode-network
+
+  # ===========================================
+  # Redis (for Rate Limiting)
+  # ===========================================
+  redis:
+    image: redis:7-alpine
+    container_name: getthecode-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - getthecode-network
+
+  # ===========================================
+  # FastAPI Backend
+  # ===========================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: getthecode-backend
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-devuser}:${POSTGRES_PASSWORD:-devpassword123}@postgresql:5432/${POSTGRES_DB:-getthecode}
+      - TEMPORAL_HOST=temporal
+      - TEMPORAL_PORT=7233
+      - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY must be set in .env}
+      - SECRET_CODE=${SECRET_CODE:-DEV-TEST-CODE-1234}
+      - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+      - REDIS_URL=redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgresql
+      - temporal
+      - redis
+    volumes:
+      - ./backend:/app
+    networks:
+      - getthecode-network
+
+  # ===========================================
+  # Temporal Worker
+  # ===========================================
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: getthecode-worker
+    command: python -m workflows.worker
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-devuser}:${POSTGRES_PASSWORD:-devpassword123}@postgresql:5432/${POSTGRES_DB:-getthecode}
+      - TEMPORAL_HOST=temporal
+      - TEMPORAL_PORT=7233
+      - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY must be set in .env}
+      - SECRET_CODE=${SECRET_CODE:-DEV-TEST-CODE-1234}
+    depends_on:
+      - temporal
+      - backend
+    volumes:
+      - ./backend:/app
+    networks:
+      - getthecode-network
+
+  # ===========================================
+  # Next.js Frontend
+  # ===========================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: getthecode-frontend
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - API_URL=http://backend:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    networks:
+      - getthecode-network
+
+volumes:
+  postgres_data:
+
+networks:
+  getthecode-network:
+    driver: bridge
+
