@@ -14,6 +14,7 @@ __pycache__/
 
 # SSL Certificates (SECURITY: Never commit private keys!)
 nginx/ssl/
+nginx/.htpasswd
 *.pem
 *.key
 *.crt
