@@ -18,10 +18,10 @@ module.exports = {
           red: '#ff3333',
           cyan: '#00ffff',
         },
-        christmas: {
-          red: '#e63946',
-          gold: '#ffd700',
-          green: '#2d6a4f',
+        frost: {
+          blue: '#4fc3f7',
+          silver: '#b0bec5',
+          deep: '#0288d1',
         },
       },
       fontFamily: {

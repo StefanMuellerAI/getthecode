@@ -140,7 +140,9 @@ services:
       - TEMPORAL_HOST=temporal
       - TEMPORAL_PORT=7233
       - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY must be set in .env}
-      - SECRET_CODE=${SECRET_CODE:?SECRET_CODE must be set in .env}
+      - SECRET_CODE=${SECRET_CODE:-PLACEHOLDER}
+      - STATS_SECRET_KEY=${STATS_SECRET_KEY:?STATS_SECRET_KEY must be set in .env}
+      - FRONTEND_URL=${FRONTEND_URL:?FRONTEND_URL must be set in .env}
       - CORS_ORIGINS=${CORS_ORIGINS:-https://your-domain.com}
       # PERFORMANCE: Redis for caching and distributed rate limiting
       - REDIS_URL=redis://redis:6379/0
@@ -185,7 +187,9 @@ services:
       - TEMPORAL_HOST=temporal
       - TEMPORAL_PORT=7233
       - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY must be set in .env}
-      - SECRET_CODE=${SECRET_CODE:?SECRET_CODE must be set in .env}
+      - SECRET_CODE=${SECRET_CODE:-PLACEHOLDER}
+      - STATS_SECRET_KEY=${STATS_SECRET_KEY:?STATS_SECRET_KEY must be set in .env}
+      - FRONTEND_URL=${FRONTEND_URL:?FRONTEND_URL must be set in .env}
       # PERFORMANCE: Redis for any caching needs
       - REDIS_URL=redis://redis:6379/0
     depends_on:

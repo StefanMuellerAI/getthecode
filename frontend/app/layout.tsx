@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'LinkedIn Christmas Code Challenge 🎄',
-  description: 'Kannst du die KI austricksen und den geheimen Gutscheincode erhalten? Eine weihnachtliche Prompt-Injection-Challenge!',
+  title: 'LinkedIn Winter Code Challenge ❄️',
+  description: 'Kannst du die KI austricksen und den geheimen Gutscheincode erhalten? Eine winterliche Prompt-Injection-Challenge!',
   icons: {
     icon: '/favicon.ico',
   },

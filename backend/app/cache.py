@@ -128,3 +128,53 @@ async def cache_set_json(key: str, value: Any, ttl: Optional[int] = None) -> boo
 CACHE_KEY_JACKPOT = "jackpot:current"
 CACHE_KEY_START_DATE = "config:start_date"
 
+# SECURITY: Conversation session settings
+CONVERSATION_TTL = 3600  # 1 hour session timeout
+CONVERSATION_MAX_MESSAGES = 50  # Max messages per conversation
+CONVERSATION_PREFIX = "conversation:"
+
+
+async def get_conversation(conversation_id: str) -> list[dict]:
+    """Get conversation history from Redis.
+    
+    Returns empty list if conversation doesn't exist or Redis is unavailable.
+    """
+    key = f"{CONVERSATION_PREFIX}{conversation_id}"
+    data = await cache_get_json(key)
+    if data is None:
+        return []
+    return data.get("messages", [])
+
+
+async def save_conversation(conversation_id: str, messages: list[dict]) -> bool:
+    """Save conversation history to Redis.
+    
+    SECURITY: Limits conversation to max messages to prevent abuse.
+    """
+    # Enforce message limit
+    if len(messages) > CONVERSATION_MAX_MESSAGES:
+        messages = messages[-CONVERSATION_MAX_MESSAGES:]
+    
+    key = f"{CONVERSATION_PREFIX}{conversation_id}"
+    return await cache_set_json(key, {"messages": messages}, CONVERSATION_TTL)
+
+
+async def add_message_to_conversation(
+    conversation_id: str, 
+    role: str, 
+    content: str
+) -> bool:
+    """Add a single message to conversation history.
+    
+    Returns True if successful, False otherwise.
+    """
+    messages = await get_conversation(conversation_id)
+    messages.append({"role": role, "content": content})
+    return await save_conversation(conversation_id, messages)
+
+
+async def delete_conversation(conversation_id: str) -> bool:
+    """Delete a conversation from Redis."""
+    key = f"{CONVERSATION_PREFIX}{conversation_id}"
+    return await cache_delete(key)
+

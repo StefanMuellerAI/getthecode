@@ -106,6 +106,8 @@ services:
       - SECRET_CODE=${SECRET_CODE:-DEV-TEST-CODE-1234}
       - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
       - REDIS_URL=redis://redis:6379/0
+      - STATS_SECRET_KEY=${STATS_SECRET_KEY:-dev-stats-secret}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
     ports:
       - "8000:8000"
     depends_on:
@@ -133,6 +135,8 @@ services:
       - TEMPORAL_PORT=7233
       - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY must be set in .env}
       - SECRET_CODE=${SECRET_CODE:-DEV-TEST-CODE-1234}
+      - STATS_SECRET_KEY=${STATS_SECRET_KEY:-dev-stats-secret}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
     depends_on:
       - temporal
       - backend

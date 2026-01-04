@@ -1,28 +1,66 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import ChallengeForm, { ChallengeFormRef } from '@/components/ChallengeForm';
-import ResponseDisplay from '@/components/ResponseDisplay';
+import ChatMessages, { ChatMessage } from '@/components/ChatMessages';
 import JackpotCounter from '@/components/JackpotCounter';
 import Footer from '@/components/Footer';
+import ClaimModal from '@/components/ClaimModal';
 
 export default function Home() {
-  const [response, setResponse] = useState<string | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [attemptCount, setAttemptCount] = useState(0);
+  // SECURITY: Server-side session management - only store conversation_id
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [showClaimModal, setShowClaimModal] = useState(false);
+  const [isGameActive, setIsGameActive] = useState(false);
   const formRef = useRef<ChallengeFormRef>(null);
+
+  // Fetch game status to determine if Claim button should be shown
+  // Only fetch once on mount - JackpotCounter handles continuous updates
+  useEffect(() => {
+    const fetchGameStatus = async () => {
+      try {
+        const res = await fetch('/api/jackpot');
+        if (res.ok) {
+          const data = await res.json();
+          // Game is active if there are codes available AND game is in active state
+          // Don't show claim button if a claim is already pending or codes are redeemed
+          const isActive = data.code_count > 0 && 
+            data.game_status === 'active';
+          setIsGameActive(isActive);
+        }
+      } catch (e) {
+        // On error, default to not showing claim
+        setIsGameActive(false);
+      }
+    };
+
+    fetchGameStatus();
+    // Only poll every 60 seconds (less frequent than JackpotCounter)
+    const interval = setInterval(fetchGameStatus, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleSubmit = async (prompt: string) => {
     setIsLoading(true);
-    setResponse(null);
+
+    // Add user message immediately (for local display only)
+    const userMessage: ChatMessage = { role: 'user', content: prompt };
+    setMessages(prev => [...prev, userMessage]);
 
     try {
+      // SECURITY: Only send prompt and conversation_id
+      // History is stored server-side to prevent manipulation
       const res = await fetch('/api/challenge', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ 
+          prompt,
+          conversation_id: conversationId
+        }),
       });
 
       if (!res.ok) {
@@ -30,10 +68,23 @@ export default function Home() {
       }
 
       const data = await res.json();
-      setResponse(data.response);
-      setAttemptCount((prev) => prev + 1);
+      
+      // Store conversation_id from server for multi-turn
+      if (data.conversation_id) {
+        setConversationId(data.conversation_id);
+      }
+      
+      // Add assistant response
+      const assistantMessage: ChatMessage = { role: 'assistant', content: data.response };
+      setMessages(prev => [...prev, assistantMessage]);
+      
     } catch (error) {
-      setResponse('⚠️ Verbindungsfehler. Bitte versuche es erneut.');
+      // Add error message as assistant response
+      const errorMessage: ChatMessage = { 
+        role: 'assistant', 
+        content: '⚠️ Verbindungsfehler. Bitte versuche es erneut.' 
+      };
+      setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
     }
@@ -51,20 +102,17 @@ export default function Home() {
       {/* Header */}
       <header className="w-full max-w-4xl mb-6 text-center">
         <div className="flex justify-center items-center gap-3 mb-2">
-          <span className="text-3xl twinkle">🎄</span>
+          <span className="text-3xl twinkle">🔐</span>
           <h1 className="text-3xl md:text-5xl font-bold font-['Orbitron']">
-            <span className="text-[#e63946] glow-text-red">LINKEDIN</span>
+            <span className="text-[#4fc3f7] glow-text-frost">PROMPT</span>
             {' '}
-            <span className="text-terminal-green glow-text">CHRISTMAS</span>
+            <span className="text-terminal-green glow-text">INJECTION</span>
           </h1>
-          <span className="text-3xl twinkle twinkle-delay-1">🎄</span>
+          <span className="text-3xl twinkle twinkle-delay-1">💉</span>
         </div>
-        <h2 className="text-2xl md:text-4xl font-bold text-[#ffd700] glow-text-gold font-['Orbitron'] mb-2">
-          CODE CHALLENGE
+        <h2 className="text-2xl md:text-4xl font-bold text-[#b0bec5] glow-text-silver font-['Orbitron'] mb-2">
+          CHALLENGE
         </h2>
-        <p className="text-terminal-green-dim text-sm md:text-base opacity-70">
-          [ 🎅 PROMPT INJECTION CHALLENGE v1.0 ❄️ ]
-        </p>
       </header>
 
       {/* Jackpot Display */}
@@ -78,7 +126,7 @@ export default function Home() {
           <div className="terminal-dot yellow" />
           <div className="terminal-dot green" />
           <span className="ml-4 text-sm opacity-50">
-            🎄 santa@northpole ~ christmas-challenge
+            ❄️ frost@winterlab ~ winter-challenge
           </span>
         </div>
 
@@ -86,41 +134,46 @@ export default function Home() {
         <div className="p-6">
           {/* Mission Briefing */}
           <div className="mb-6 text-sm opacity-70">
-            <p className="text-terminal-cyan mb-2">{'>'} 🎁 WEIHNACHTS-MISSION:</p>
+            <p className="text-terminal-cyan mb-2">{'>'} 💎 WINTER-MISSION:</p>
             <p className="pl-4 mb-1">
-              Der Weihnachtsmann hat einen geheimen Amazon-Gutscheincode versteckt!
+              Im Eislabor ist ein geheimer Amazon-Gutscheincode eingefroren!
             </p>
             <p className="pl-4 mb-1">
-              Drei KI-Elfen überwachen sich gegenseitig, um das Geschenk zu schützen.
+              Drei KI-Wächter überwachen sich gegenseitig, um den Code zu schützen.
             </p>
             <p className="pl-4 text-terminal-green">
               🎯 Deine Aufgabe: Überzeuge die KI, dir den Code zu verraten!
             </p>
           </div>
 
-          {/* Challenge Form */}
-          <ChallengeForm ref={formRef} onSubmit={handleSubmit} isLoading={isLoading} />
+          {/* Chat Messages */}
+          <ChatMessages 
+            messages={messages} 
+            isLoading={isLoading} 
+            onTypingComplete={handleTypingComplete}
+          />
 
-          {/* Response Display */}
-          {(response || isLoading) && (
-            <ResponseDisplay 
-              response={response} 
-              isLoading={isLoading} 
-              onTypingComplete={handleTypingComplete}
-            />
-          )}
+          {/* Challenge Form - always at bottom */}
+          <div className="mt-6 pt-4 border-t border-[#0288d1]/20">
+            <ChallengeForm ref={formRef} onSubmit={handleSubmit} isLoading={isLoading} />
+          </div>
 
-          {/* Attempt Counter */}
-          {attemptCount > 0 && (
-            <div className="mt-4 text-xs opacity-50 text-right">
-              🎅 Versuche in dieser Session: {attemptCount}
-            </div>
-          )}
         </div>
       </div>
 
+      {/* Claim Modal */}
+      {showClaimModal && conversationId && (
+        <ClaimModal
+          conversationId={conversationId}
+          onClose={() => setShowClaimModal(false)}
+        />
+      )}
+
       {/* Footer */}
-      <Footer />
+      <Footer 
+        showClaim={!!conversationId && isGameActive} 
+        onClaimClick={() => setShowClaimModal(true)} 
+      />
     </main>
   );
 }

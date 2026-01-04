@@ -44,6 +44,12 @@ class Settings(BaseSettings):
     # CORS - accepts comma-separated string or list
     cors_origins: Union[str, List[str]] = "http://localhost:3000,http://127.0.0.1:3000"
     
+    # Stats Admin Dashboard - secret key for access
+    stats_secret_key: str = "dev-stats-key-change-me"
+    
+    # Frontend URL for generating redemption links
+    frontend_url: str = "http://localhost:3000"
+    
     @field_validator('cors_origins', mode='before')
     @classmethod
     def parse_cors_origins(cls, v):
@@ -65,17 +71,18 @@ class Settings(BaseSettings):
             if "devpassword" in self.database_url or "getthecode123" in self.database_url:
                 raise ValueError("Default database password detected in production! Use a secure password.")
             
-            # Validate secret code
-            if not self.secret_code:
-                raise ValueError("SECRET_CODE must be provided in production")
-            if "DEV" in self.secret_code.upper() or "TEST" in self.secret_code.upper() or "FAKE" in self.secret_code.upper():
-                raise ValueError("Development/placeholder secret code detected in production!")
+            # NOTE: secret_code validation removed - we now use placeholder codes
+            # The real gift codes are stored in the database, not in environment variables
             
             # Validate OpenAI API key
             if not self.openai_api_key:
                 raise ValueError("OPENAI_API_KEY must be provided in production")
             if not self.openai_api_key.startswith("sk-"):
                 raise ValueError("Invalid OpenAI API key format in production")
+            
+            # Validate stats secret key
+            if not self.stats_secret_key or "dev" in self.stats_secret_key.lower():
+                raise ValueError("STATS_SECRET_KEY must be set to a secure value in production")
         
         return self
     

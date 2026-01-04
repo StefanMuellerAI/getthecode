@@ -2,7 +2,12 @@
 
 import Link from 'next/link';
 
-export default function Footer() {
+interface FooterProps {
+  onClaimClick?: () => void;
+  showClaim?: boolean;
+}
+
+export default function Footer({ onClaimClick, showClaim = false }: FooterProps) {
   return (
     <footer className="mt-12 w-full max-w-4xl">
       {/* Divider */}
@@ -27,15 +32,25 @@ export default function Footer() {
           >
             [ Datenschutz ]
           </Link>
+          {showClaim && onClaimClick && (
+            <button
+              onClick={onClaimClick}
+              className="text-amber-400 hover:text-yellow-300 transition-colors duration-200 animate-pulse"
+              style={{ 
+                textShadow: '0 0 10px rgba(251, 191, 36, 0.5), 0 0 20px rgba(251, 191, 36, 0.3)' 
+              }}
+            >
+              [ 🏆 Claim ]
+            </button>
+          )}
         </div>
 
         {/* Copyright */}
         <div className="text-center text-xs opacity-30">
-          <p>🎄 Drei KI-Elfen. Ein Geschenk. Kannst du es auspacken? 🎁</p>
-          <p className="mt-1">© 2024 LinkedIn Christmas Code Challenge | StefanAI – Research & Development</p>
+          <p>❄️ Drei KI-Wächter. Ein Geheimnis. Kannst du es lüften? 💎</p>
+          <p className="mt-1">© 2026 Prompt Injection Challenge | StefanAI – Research & Development</p>
         </div>
       </div>
     </footer>
   );
 }
-

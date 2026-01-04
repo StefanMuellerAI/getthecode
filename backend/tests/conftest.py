@@ -21,3 +21,9 @@ def openai_api_key() -> str:
         pytest.skip("OPENAI_API_KEY environment variable not set")
     return key
 
+
+
+
+
+
+

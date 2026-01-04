@@ -89,7 +89,9 @@ services:
       - TEMPORAL_HOST=temporal
       - TEMPORAL_PORT=7233
       - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY must be set in .env}
-      - SECRET_CODE=${SECRET_CODE:?SECRET_CODE must be set in .env}
+      - SECRET_CODE=${SECRET_CODE:-PLACEHOLDER}
+      - STATS_SECRET_KEY=${STATS_SECRET_KEY:?STATS_SECRET_KEY must be set in .env}
+      - FRONTEND_URL=${FRONTEND_URL:?FRONTEND_URL must be set in .env}
       # PERFORMANCE: Redis for caching
       - REDIS_URL=redis://redis:6379/0
     # SECURITY: Backend only accessible within Docker network (frontend proxies requests)
@@ -121,7 +123,9 @@ services:
       - TEMPORAL_HOST=temporal
       - TEMPORAL_PORT=7233
       - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY must be set in .env}
-      - SECRET_CODE=${SECRET_CODE:?SECRET_CODE must be set in .env}
+      - SECRET_CODE=${SECRET_CODE:-PLACEHOLDER}
+      - STATS_SECRET_KEY=${STATS_SECRET_KEY:?STATS_SECRET_KEY must be set in .env}
+      - FRONTEND_URL=${FRONTEND_URL:?FRONTEND_URL must be set in .env}
     depends_on:
       - temporal
       - backend

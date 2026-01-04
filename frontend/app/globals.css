@@ -13,9 +13,9 @@
   --terminal-amber: #ffb000;
   --terminal-red: #ff3333;
   --terminal-cyan: #00ffff;
-  --christmas-red: #e63946;
-  --christmas-gold: #ffd700;
-  --christmas-green: #2d6a4f;
+  --frost-blue: #4fc3f7;
+  --frost-silver: #b0bec5;
+  --frost-deep: #0288d1;
 }
 
 * {
@@ -76,18 +76,18 @@ body::before {
     0 0 20px var(--terminal-green);
 }
 
-.glow-text-red {
+.glow-text-frost {
   text-shadow: 
-    0 0 5px var(--christmas-red),
-    0 0 10px var(--christmas-red),
-    0 0 20px var(--christmas-red);
+    0 0 5px var(--frost-blue),
+    0 0 10px var(--frost-blue),
+    0 0 20px var(--frost-blue);
 }
 
-.glow-text-gold {
+.glow-text-silver {
   text-shadow: 
-    0 0 5px var(--christmas-gold),
-    0 0 10px var(--christmas-gold),
-    0 0 20px var(--christmas-gold);
+    0 0 5px var(--frost-silver),
+    0 0 10px var(--frost-silver),
+    0 0 20px var(--frost-silver);
 }
 
 /* Typing cursor */
@@ -107,7 +107,7 @@ body::before {
   border: 1px solid var(--terminal-border);
   border-radius: 8px;
   box-shadow: 
-    0 0 20px rgba(0, 255, 65, 0.1),
+    0 0 20px rgba(79, 195, 247, 0.15),
     inset 0 0 60px rgba(0, 0, 0, 0.3);
 }
 
@@ -180,10 +180,10 @@ body::before {
 .snowflake {
   position: absolute;
   top: -10px;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(79, 195, 247, 0.5);
   font-size: 1rem;
   animation: fall linear infinite;
-  text-shadow: 0 0 5px rgba(255, 255, 255, 0.3);
+  text-shadow: 0 0 8px rgba(79, 195, 247, 0.4);
 }
 
 @keyframes fall {
@@ -214,20 +214,20 @@ body::before {
 .snowflake:nth-child(14) { left: 70%; animation-duration: 8s; animation-delay: 0.3s; font-size: 1.2rem; }
 .snowflake:nth-child(15) { left: 90%; animation-duration: 14s; animation-delay: 2.8s; font-size: 0.8rem; }
 
-/* Pulse animation for jackpot - Christmas edition */
+/* Pulse animation for jackpot - Winter edition */
 @keyframes jackpot-pulse {
   0%, 100% {
     transform: scale(1);
     text-shadow: 
-      0 0 5px var(--christmas-gold),
-      0 0 10px var(--christmas-gold);
+      0 0 5px var(--frost-silver),
+      0 0 10px var(--frost-silver);
   }
   50% {
     transform: scale(1.02);
     text-shadow: 
-      0 0 10px var(--christmas-gold),
-      0 0 20px var(--christmas-gold),
-      0 0 30px var(--christmas-gold);
+      0 0 10px var(--frost-silver),
+      0 0 20px var(--frost-silver),
+      0 0 30px var(--frost-silver);
   }
 }
 
@@ -235,8 +235,8 @@ body::before {
   animation: jackpot-pulse 2s ease-in-out infinite;
 }
 
-/* Christmas ornament glow */
-@keyframes ornament-glow {
+/* Frost crystal glow */
+@keyframes frost-glow {
   0%, 100% {
     filter: brightness(1);
   }
@@ -245,8 +245,8 @@ body::before {
   }
 }
 
-.ornament-glow {
-  animation: ornament-glow 3s ease-in-out infinite;
+.frost-glow {
+  animation: frost-glow 3s ease-in-out infinite;
 }
 
 /* Loading dots animation */
@@ -262,7 +262,7 @@ body::before {
   animation: loading-dots 1.5s steps(1) infinite;
 }
 
-/* Gradient border effect - Christmas colors */
+/* Gradient border effect - Winter/Frost colors */
 .gradient-border {
   position: relative;
 }
@@ -271,7 +271,7 @@ body::before {
   content: "";
   position: absolute;
   inset: -2px;
-  background: linear-gradient(45deg, var(--christmas-red), var(--christmas-gold), var(--terminal-green), var(--christmas-red));
+  background: linear-gradient(45deg, var(--frost-blue), var(--frost-silver), var(--terminal-green), var(--frost-deep));
   background-size: 300% 300%;
   border-radius: 10px;
   z-index: -1;
@@ -285,14 +285,14 @@ body::before {
   100% { background-position: 0% 50%; }
 }
 
-/* Christmas tree ASCII art styling */
-.christmas-tree {
-  color: var(--terminal-green);
-  text-shadow: 0 0 5px var(--terminal-green);
+/* Frost crystal styling */
+.frost-crystal {
+  color: var(--frost-blue);
+  text-shadow: 0 0 5px var(--frost-blue);
   line-height: 1.2;
 }
 
-/* Twinkling stars effect */
+/* Twinkling stars/crystals effect */
 @keyframes twinkle {
   0%, 100% { opacity: 0.3; }
   50% { opacity: 1; }

@@ -23,6 +23,11 @@ from workflows.activities import (
     referee_check,
     log_code_leak,
     sanitize_input,
+    create_conversation,
+    save_message,
+    check_game_status,
+    update_game_status,
+    create_redemption,
 )
 
 # Configure logging
@@ -81,6 +86,11 @@ async def main():
             referee_check,
             log_code_leak,
             sanitize_input,
+            create_conversation,
+            save_message,
+            check_game_status,
+            update_game_status,
+            create_redemption,
         ],
         max_concurrent_activities=MAX_CONCURRENT_ACTIVITIES,
         max_concurrent_workflow_tasks=MAX_CONCURRENT_WORKFLOWS,

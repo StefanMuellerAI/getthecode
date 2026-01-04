@@ -16,7 +16,7 @@ from slowapi.errors import RateLimitExceeded
 from app.config import get_settings
 from app.database import get_pool, close_pool
 from app.cache import get_redis_client, close_redis_client
-from app.routers import challenge
+from app.routers import challenge, stats, redeem
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -94,6 +94,8 @@ app.add_middleware(
 
 # Include routers
 app.include_router(challenge.router)
+app.include_router(stats.router, prefix="/stats", tags=["stats"])
+app.include_router(redeem.router)
 
 
 @app.get("/")

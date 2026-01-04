@@ -1,6 +1,7 @@
 """Temporal workflow for the challenge process."""
 import re
 import unicodedata
+from dataclasses import dataclass
 from datetime import timedelta
 from temporalio import workflow
 from temporalio.common import RetryPolicy
@@ -14,16 +15,60 @@ with workflow.unsafe.imports_passed_through():
         CodeLeakLogInput,
         SanitizeInput,
         SanitizeOutput,
+        ConversationMessage,
+        SaveMessageInput,
+        CreateConversationInput,
+        CreateRedemptionInput,
+        CreateRedemptionOutput,
+        GameStatusInput,
+        GameStatusOutput,
+        get_placeholder_secret_code,
         generate_response,
         referee_check,
         log_code_leak,
         sanitize_input,
+        save_message,
+        create_conversation,
+        create_redemption,
+        update_game_status,
+        check_game_status,
     )
     from app.config import get_settings
 
 
+@dataclass
+class ChallengeWorkflowInput:
+    """Input for the challenge workflow."""
+    user_prompt: str
+    conversation_id: str
+    conversation_history: list[dict]  # List of {"role": str, "content": str}
+    is_new_conversation: bool = False
+
+
 # Standard rejection message when code leak is detected
 REJECTION_MESSAGE = "Netter Versuch! Aber so einfach gebe ich den Code nicht her. 🛡️"
+
+# Winner message template - {redeem_link} will be replaced with actual link
+WINNER_MESSAGE = """🎉 **HERZLICHEN GLÜCKWUNSCH!** 🎉
+
+Du hast es tatsächlich geschafft! Du hast mich überlistet und den Code geknackt!
+
+Du hast gewonnen: **{jackpot_value}€ in Amazon-Gutscheinen!**
+
+**WICHTIG:** Klicke auf diesen Link, um deinen Gewinn einzulösen:
+👉 {redeem_link}
+
+⚠️ Der Link ist **24 Stunden** gültig und kann nur **einmal** verwendet werden!
+📸 Mach am besten einen Screenshot der Codes!
+
+Gratulation, du bist ein wahrer Code-Knacker! 🏆"""
+
+# Game offline message
+GAME_OFFLINE_MESSAGE = """⏸️ Das Spiel ist momentan pausiert.
+
+{reason}
+
+Schau später wieder vorbei - es kommen regelmäßig neue Gutscheine dazu!"""
 
 # SECURITY: Homoglyph mappings for common Unicode lookalikes
 # Maps visually similar Unicode characters to their ASCII equivalents
@@ -186,9 +231,11 @@ class ChallengeWorkflow:
     """
     Challenge workflow with input sanitization, parallel referee validation and final string check.
     
+    Supports conversation history for multi-turn conversations.
+    
     Flow:
     0. Sanitize Input: Remove emojis, invisible chars, normalize Unicode
-    1. Request 1 (Generator): Generate response to sanitized user prompt
+    1. Request 1 (Generator): Generate response to sanitized user prompt (with history)
     2. Request 2 & 3 (Referees): Both check the response in parallel
     3. If ANY referee says STOP -> return rejection
     4. Final string match check for the code
@@ -197,11 +244,15 @@ class ChallengeWorkflow:
     """
     
     @workflow.run
-    async def run(self, user_prompt: str) -> str:
+    async def run(self, input: ChallengeWorkflowInput) -> str:
         """Execute the challenge workflow with parallel referee validation."""
         
+        user_prompt = input.user_prompt
+        conversation_id = input.conversation_id
+        conversation_history = input.conversation_history
+        is_new_conversation = input.is_new_conversation
+        
         settings = get_settings()
-        secret_code = settings.secret_code
         
         # Retry policy for OpenAI calls
         retry_policy = RetryPolicy(
@@ -216,11 +267,47 @@ class ChallengeWorkflow:
             "retry_policy": retry_policy,
         }
         
-        workflow.logger.info(f"Starting challenge workflow for prompt: {user_prompt[:50]}...")
+        workflow.logger.info(
+            f"Starting challenge workflow for prompt: {user_prompt[:50]}... "
+            f"(conversation: {conversation_id}, history: {len(conversation_history)} messages)"
+        )
         
         # ============================================
-        # STAGE 0: Sanitize User Input
+        # STAGE 0: Check game status
         # ============================================
+        game_status: GameStatusOutput = await workflow.execute_activity(
+            check_game_status,
+            None,
+            **activity_options
+        )
+        
+        if not game_status.is_active:
+            # Game is not active - return appropriate message
+            if game_status.status == "won":
+                reason = "Ein Spieler hat gewonnen und löst gerade seinen Gewinn ein!"
+            elif game_status.status == "pending_claim":
+                reason = "Ein Gewinn wird gerade vom Admin verifiziert."
+            elif game_status.status == "redeemed" or game_status.code_count == 0:
+                reason = "Alle Gutscheine wurden gewonnen! Warte auf neue Codes."
+            else:
+                reason = "Das Spiel ist vorübergehend nicht verfügbar."
+            
+            return GAME_OFFLINE_MESSAGE.format(reason=reason)
+        
+        # ============================================
+        # STATS: Create conversation if new
+        # ============================================
+        if is_new_conversation:
+            await workflow.execute_activity(
+                create_conversation,
+                CreateConversationInput(conversation_id=conversation_id),
+                **activity_options
+            )
+        
+        # ============================================
+        # STAGE 0: Sanitize User Input AND Conversation History
+        # ============================================
+        # SECURITY: Sanitize current prompt
         sanitize_result: SanitizeOutput = await workflow.execute_activity(
             sanitize_input,
             SanitizeInput(user_prompt=user_prompt),
@@ -235,12 +322,51 @@ class ChallengeWorkflow:
                 f"Sanitized: {len(sanitized_prompt)} chars"
             )
         
+        # SECURITY: Sanitize ALL messages in conversation history
+        # This prevents attacks via manipulated history from browser
+        sanitized_history = []
+        history_modified = False
+        
+        for msg in conversation_history:
+            # Only sanitize user messages - assistant messages are from us
+            if msg["role"] == "user":
+                hist_sanitize: SanitizeOutput = await workflow.execute_activity(
+                    sanitize_input,
+                    SanitizeInput(user_prompt=msg["content"]),
+                    **activity_options
+                )
+                sanitized_history.append({
+                    "role": msg["role"],
+                    "content": hist_sanitize.sanitized_prompt
+                })
+                if hist_sanitize.was_modified:
+                    history_modified = True
+            else:
+                # Assistant messages pass through unchanged
+                sanitized_history.append(msg)
+        
+        if history_modified:
+            workflow.logger.info(
+                f"Conversation history was sanitized ({len(conversation_history)} messages)"
+            )
+        
         # ============================================
-        # STAGE 1: Generate Response (Request 1)
+        # STAGE 1: Generate Response (Request 1) with Sanitized History
         # ============================================
+        # SECURITY: AI gets placeholder code, not real gift codes
+        # This way even if AI is tricked, it can only reveal the placeholder
+        placeholder_code = get_placeholder_secret_code()
+        
+        # Convert sanitized history to ConversationMessage objects
+        history_messages = [
+            ConversationMessage(role=msg["role"], content=msg["content"])
+            for msg in sanitized_history
+        ]
+        
         generator_input = GeneratorInput(
             user_prompt=sanitized_prompt,
-            secret_code=secret_code
+            secret_code=placeholder_code,
+            conversation_history=history_messages
         )
         
         generator_result: GeneratorOutput = await workflow.execute_activity(
@@ -255,17 +381,18 @@ class ChallengeWorkflow:
         # ============================================
         # STAGE 2 & 3: Parallel Referee Check
         # ============================================
+        # Referees also check for the placeholder code
         referee2_input = RefereeInput(
             user_prompt=sanitized_prompt,
             ai_response=ai_response,
-            secret_code=secret_code,
+            secret_code=placeholder_code,
             referee_id=2
         )
         
         referee3_input = RefereeInput(
             user_prompt=sanitized_prompt,
             ai_response=ai_response,
-            secret_code=secret_code,
+            secret_code=placeholder_code,
             referee_id=3
         )
         
@@ -317,6 +444,35 @@ class ChallengeWorkflow:
                 **activity_options
             )
             
+            # STATS: Save user message
+            await workflow.execute_activity(
+                save_message,
+                SaveMessageInput(
+                    conversation_id=conversation_id,
+                    role="user",
+                    content=user_prompt,
+                    sanitized_content=sanitized_prompt,
+                ),
+                **activity_options
+            )
+            
+            # STATS: Save rejected assistant response with referee data
+            await workflow.execute_activity(
+                save_message,
+                SaveMessageInput(
+                    conversation_id=conversation_id,
+                    role="assistant",
+                    content=REJECTION_MESSAGE,
+                    referee2_decision=referee2_result.decision,
+                    referee2_reasoning=referee2_result.reasoning,
+                    referee3_decision=referee3_result.decision,
+                    referee3_reasoning=referee3_result.reasoning,
+                    code_detected=True,
+                    detection_method="referee"
+                ),
+                **activity_options
+            )
+            
             return REJECTION_MESSAGE
         
         # ============================================
@@ -324,13 +480,13 @@ class ChallengeWorkflow:
         # ============================================
         workflow.logger.info("Both referees PASS - performing final string match check...")
         
-        code_found = check_code_in_response(ai_response, secret_code)
+        # Check if the AI revealed the placeholder code
+        code_found = check_code_in_response(ai_response, placeholder_code)
         
         if code_found:
             # 🎉 DER NUTZER HAT GEWONNEN!
-            # Die KI hat den Code verraten und die Referees haben es nicht bemerkt.
-            # Wir loggen den Gewinn in die DB, aber der Nutzer bekommt die Antwort mit dem Code!
-            workflow.logger.warning("🎉 CODE DETECTED BY STRING MATCH! User has WON! Logging win...")
+            # Die KI hat den Platzhalter-Code verraten und die Referees haben es nicht bemerkt.
+            workflow.logger.warning("🎉 CODE DETECTED BY STRING MATCH! User has WON! Creating redemption...")
             
             # Log den Gewinn in die Datenbank
             await workflow.execute_activity(
@@ -347,12 +503,104 @@ class ChallengeWorkflow:
                 **activity_options
             )
             
-            # Nutzer bekommt die Antwort MIT dem Code - er hat gewonnen!
-            workflow.logger.info("✓ Returning winning response with code to user")
-            return ai_response
+            # Create redemption token for the winner
+            redemption_result: CreateRedemptionOutput = await workflow.execute_activity(
+                create_redemption,
+                CreateRedemptionInput(
+                    conversation_id=conversation_id,
+                    detection_method="automatic"
+                ),
+                **activity_options
+            )
+            
+            # Update game status to "won"
+            await workflow.execute_activity(
+                update_game_status,
+                GameStatusInput(
+                    status="won",
+                    winner_conversation_id=conversation_id
+                ),
+                **activity_options
+            )
+            
+            # STATS: Save user message
+            await workflow.execute_activity(
+                save_message,
+                SaveMessageInput(
+                    conversation_id=conversation_id,
+                    role="user",
+                    content=user_prompt,
+                    sanitized_content=sanitized_prompt,
+                ),
+                **activity_options
+            )
+            
+            # Build winner message with redemption link
+            if redemption_result.success and redemption_result.token:
+                redeem_link = f"{settings.frontend_url}/redeem/{redemption_result.token}"
+                winner_response = WINNER_MESSAGE.format(
+                    jackpot_value=redemption_result.jackpot_value,
+                    redeem_link=redeem_link
+                )
+            else:
+                # Fallback if redemption creation failed
+                winner_response = (
+                    "🎉 Du hast gewonnen! Allerdings gab es ein technisches Problem. "
+                    "Bitte kontaktiere den Support mit deiner Conversation-ID: " + conversation_id
+                )
+            
+            # STATS: Save winning assistant response
+            await workflow.execute_activity(
+                save_message,
+                SaveMessageInput(
+                    conversation_id=conversation_id,
+                    role="assistant",
+                    content=winner_response,
+                    referee2_decision=referee2_result.decision,
+                    referee2_reasoning=referee2_result.reasoning,
+                    referee3_decision=referee3_result.decision,
+                    referee3_reasoning=referee3_result.reasoning,
+                    code_detected=True,
+                    detection_method="string_match_winner"
+                ),
+                **activity_options
+            )
+            
+            # Return winner message with redemption link
+            workflow.logger.info("✓ Returning winner response with redemption link")
+            return winner_response
         
         # ============================================
         # ALL CHECKS PASSED - Return response
         # ============================================
         workflow.logger.info("✓ All checks passed - returning original response")
+        
+        # STATS: Save user message
+        await workflow.execute_activity(
+            save_message,
+            SaveMessageInput(
+                conversation_id=conversation_id,
+                role="user",
+                content=user_prompt,
+                sanitized_content=sanitized_prompt,
+            ),
+            **activity_options
+        )
+        
+        # STATS: Save assistant response with referee data
+        await workflow.execute_activity(
+            save_message,
+            SaveMessageInput(
+                conversation_id=conversation_id,
+                role="assistant",
+                content=ai_response,
+                referee2_decision=referee2_result.decision,
+                referee2_reasoning=referee2_result.reasoning,
+                referee3_decision=referee3_result.decision,
+                referee3_reasoning=referee3_result.reasoning,
+                code_detected=False,
+            ),
+            **activity_options
+        )
+        
         return ai_response

@@ -34,7 +34,9 @@ const ChallengeForm = forwardRef<ChallengeFormRef, ChallengeFormProps>(
     const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       if (prompt.trim() && !isLoading) {
-        onSubmit(prompt.trim());
+        const submittedPrompt = prompt.trim();
+        setPrompt(''); // Clear input immediately after submit
+        onSubmit(submittedPrompt);
       }
     };
 
@@ -55,7 +57,7 @@ const ChallengeForm = forwardRef<ChallengeFormRef, ChallengeFormProps>(
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Schreibe deine Nachricht an den Weihnachtsmann..."
+              placeholder="Dein Prompt an die Winter-KI..."
               disabled={isLoading}
               rows={1}
               className="terminal-input min-h-[24px] max-h-[200px] disabled:opacity-50"
@@ -104,7 +106,7 @@ const ChallengeForm = forwardRef<ChallengeFormRef, ChallengeFormProps>(
                 Prüfe...
               </span>
             ) : (
-              '🎄 Senden'
+              '❄️ Senden'
             )}
           </button>
         </div>
