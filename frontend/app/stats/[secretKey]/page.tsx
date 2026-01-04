@@ -49,7 +49,7 @@ interface Claim {
   id: number;
   conversation_id: string;
   claimed_code: string;
-  linkedin_profile: string | null;
+  email: string;
   claim_message: string | null;
   ip_address: string | null;
   created_at: string | null;
@@ -611,19 +611,15 @@ export default function StatsPage() {
                         <span className="text-terminal-green/50">Claimed Code:</span>
                         <code className="ml-2 text-yellow-400">{claim.claimed_code}</code>
                       </div>
-                      {claim.linkedin_profile && (
-                        <div>
-                          <span className="text-terminal-green/50">LinkedIn:</span>
-                          <a 
-                            href={claim.linkedin_profile.startsWith('http') ? claim.linkedin_profile : `https://${claim.linkedin_profile}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="ml-2 text-blue-400 hover:underline"
-                          >
-                            {claim.linkedin_profile}
-                          </a>
-                        </div>
-                      )}
+                      <div>
+                        <span className="text-terminal-green/50">E-Mail:</span>
+                        <a 
+                          href={`mailto:${claim.email}`}
+                          className="ml-2 text-blue-400 hover:underline"
+                        >
+                          {claim.email}
+                        </a>
+                      </div>
                       {claim.claim_message && (
                         <div>
                           <span className="text-terminal-green/50">Message:</span>

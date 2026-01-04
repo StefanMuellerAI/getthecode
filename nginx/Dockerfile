@@ -6,8 +6,11 @@ RUN apk update && apk upgrade --no-cache
 # Remove default config
 RUN rm /etc/nginx/conf.d/default.conf
 
-# Copy custom config
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Copy custom config as main nginx.conf (replaces the default)
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# Copy htpasswd for Basic Auth (stats page protection)
+COPY .htpasswd /etc/nginx/.htpasswd
 
 # Create directory for SSL certificates
 RUN mkdir -p /etc/nginx/ssl

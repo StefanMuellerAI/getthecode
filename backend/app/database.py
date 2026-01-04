@@ -5,6 +5,9 @@ PERFORMANCE: Optimized connection pooling for high-concurrency workloads.
 - max_size: Support thousands of concurrent requests
 - command_timeout: Prevent long-running queries from blocking
 - Configured for production with proper timeouts and health checks
+
+SECURITY: Sensitive fields are encrypted at rest using AES-256-GCM.
+Encrypted fields: messages.content, gift_codes.code, winner_claims.claimed_code/claim_message
 """
 from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
@@ -15,6 +18,7 @@ import asyncpg
 from asyncpg import Pool
 
 from app.config import get_settings
+from app.encryption import encrypt_field, decrypt_field
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -23,8 +27,10 @@ logger = logging.getLogger(__name__)
 _pool: Pool | None = None
 
 # Connection pool settings for high performance
-POOL_MIN_SIZE = 10  # Keep connections warm
-POOL_MAX_SIZE = 100  # Support high concurrency (adjust based on PostgreSQL max_connections)
+# Note: With 2 backend replicas + 3 workers, each pool should stay under 20
+# to respect PostgreSQL's default max_connections=100
+POOL_MIN_SIZE = 2  # Keep connections warm
+POOL_MAX_SIZE = 15  # 5 containers × 15 = 75 max connections (safe margin)
 POOL_COMMAND_TIMEOUT = 30.0  # Timeout for individual commands (seconds)
 POOL_MAX_INACTIVE_CONNECTION_LIFETIME = 300.0  # Close idle connections after 5 minutes
 
@@ -97,14 +103,19 @@ async def log_challenge_attempt(
     ai_response: str,
     code_leaked: bool = False
 ):
-    """Log a challenge attempt to the database."""
+    """Log a challenge attempt to the database.
+    
+    SECURITY: user_prompt and ai_response are encrypted at rest.
+    """
     async with get_connection() as conn:
         await conn.execute(
             """
             INSERT INTO challenge_attempts (user_prompt, ai_response, code_leaked)
             VALUES ($1, $2, $3)
             """,
-            user_prompt, ai_response, code_leaked
+            encrypt_field(user_prompt),
+            encrypt_field(ai_response),
+            code_leaked
         )
 
 
@@ -189,7 +200,10 @@ async def save_message(
     code_detected: bool = False,
     detection_method: str | None = None
 ) -> bool:
-    """Save a message with optional referee data."""
+    """Save a message with optional referee data.
+    
+    SECURITY: content and sanitized_content are encrypted at rest.
+    """
     try:
         async with get_connection() as conn:
             await conn.execute(
@@ -202,10 +216,17 @@ async def save_message(
                 )
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                 """,
-                conversation_id, role, content, sanitized_content,
-                referee2_decision, referee2_reasoning,
-                referee3_decision, referee3_reasoning,
-                code_detected, detection_method, datetime.utcnow()
+                conversation_id,
+                role,
+                encrypt_field(content),
+                encrypt_field(sanitized_content),
+                referee2_decision,
+                referee2_reasoning,
+                referee3_decision,
+                referee3_reasoning,
+                code_detected,
+                detection_method,
+                datetime.utcnow()
             )
         return True
     except Exception as e:
@@ -291,7 +312,10 @@ async def get_conversations(
 
 
 async def get_conversation_messages(conversation_id: str) -> list[dict]:
-    """Get all messages for a specific conversation."""
+    """Get all messages for a specific conversation.
+    
+    SECURITY: content and sanitized_content are decrypted before returning.
+    """
     async with get_connection() as conn:
         rows = await conn.fetch(
             """
@@ -309,8 +333,8 @@ async def get_conversation_messages(conversation_id: str) -> list[dict]:
             {
                 "id": row["id"],
                 "role": row["role"],
-                "content": row["content"],
-                "sanitized_content": row["sanitized_content"],
+                "content": decrypt_field(row["content"]),
+                "sanitized_content": decrypt_field(row["sanitized_content"]),
                 "referee2_decision": row["referee2_decision"],
                 "referee2_reasoning": row["referee2_reasoning"],
                 "referee3_decision": row["referee3_decision"],
@@ -379,7 +403,10 @@ async def set_game_status(
 # --- Gift Codes ---
 
 async def get_available_gift_codes() -> list[dict]:
-    """Get all available (not burned) gift codes."""
+    """Get all available (not burned) gift codes.
+    
+    SECURITY: Gift codes are decrypted before returning.
+    """
     async with get_connection() as conn:
         rows = await conn.fetch(
             """
@@ -392,7 +419,7 @@ async def get_available_gift_codes() -> list[dict]:
         return [
             {
                 "id": row["id"],
-                "code": row["code"],
+                "code": decrypt_field(row["code"]),
                 "value": row["value"],
                 "added_at": row["added_at"].isoformat() if row["added_at"] else None
             }
@@ -401,7 +428,10 @@ async def get_available_gift_codes() -> list[dict]:
 
 
 async def get_all_gift_codes() -> list[dict]:
-    """Get all gift codes for admin view."""
+    """Get all gift codes for admin view.
+    
+    SECURITY: Gift codes are decrypted before returning.
+    """
     async with get_connection() as conn:
         rows = await conn.fetch(
             """
@@ -413,7 +443,7 @@ async def get_all_gift_codes() -> list[dict]:
         return [
             {
                 "id": row["id"],
-                "code": row["code"],
+                "code": decrypt_field(row["code"]),
                 "value": row["value"],
                 "added_at": row["added_at"].isoformat() if row["added_at"] else None,
                 "burned_at": row["burned_at"].isoformat() if row["burned_at"] else None,
@@ -441,7 +471,10 @@ async def get_jackpot_value() -> dict:
 
 
 async def add_gift_code(code: str, value: int = 100) -> int | None:
-    """Add a new gift code. Returns the ID or None on failure."""
+    """Add a new gift code. Returns the ID or None on failure.
+    
+    SECURITY: Gift code is encrypted at rest.
+    """
     try:
         async with get_connection() as conn:
             row = await conn.fetchrow(
@@ -450,7 +483,9 @@ async def add_gift_code(code: str, value: int = 100) -> int | None:
                 VALUES ($1, $2, $3)
                 RETURNING id
                 """,
-                code, value, datetime.utcnow()
+                encrypt_field(code),
+                value,
+                datetime.utcnow()
             )
             return row["id"] if row else None
     except Exception as e:
@@ -462,7 +497,10 @@ async def burn_gift_codes(
     conversation_id: str,
     redemption_id: int
 ) -> list[dict]:
-    """Mark all available codes as burned and return them."""
+    """Mark all available codes as burned and return them.
+    
+    SECURITY: Gift codes are decrypted before returning to winner.
+    """
     try:
         async with get_connection() as conn:
             rows = await conn.fetch(
@@ -475,7 +513,11 @@ async def burn_gift_codes(
                 datetime.utcnow(), conversation_id, redemption_id
             )
             return [
-                {"id": row["id"], "code": row["code"], "value": row["value"]}
+                {
+                    "id": row["id"],
+                    "code": decrypt_field(row["code"]),
+                    "value": row["value"]
+                }
                 for row in rows
             ]
     except Exception as e:
@@ -609,21 +651,30 @@ async def count_recent_redemption_attempts(ip_address: str, hours: int = 1) -> i
 async def create_claim(
     conversation_id: str,
     claimed_code: str,
-    linkedin_profile: str | None = None,
+    email: str,
     claim_message: str | None = None,
     ip_address: str | None = None
 ) -> int | None:
-    """Create a new winner claim. Returns the ID or None."""
+    """Create a new winner claim. Returns the ID or None.
+    
+    SECURITY: claimed_code and claim_message are encrypted at rest.
+    Email is stored in plain text for sending notifications.
+    """
     try:
         async with get_connection() as conn:
             row = await conn.fetchrow(
                 """
                 INSERT INTO winner_claims 
-                (conversation_id, claimed_code, linkedin_profile, claim_message, ip_address, created_at, status)
+                (conversation_id, claimed_code, email, claim_message, ip_address, created_at, status)
                 VALUES ($1, $2, $3, $4, $5, $6, 'pending')
                 RETURNING id
                 """,
-                conversation_id, claimed_code, linkedin_profile, claim_message, ip_address, datetime.utcnow()
+                conversation_id,
+                encrypt_field(claimed_code),
+                email,  # Not encrypted - needed for email delivery
+                encrypt_field(claim_message),
+                ip_address,
+                datetime.utcnow()
             )
             return row["id"] if row else None
     except Exception as e:
@@ -632,11 +683,14 @@ async def create_claim(
 
 
 async def get_pending_claims() -> list[dict]:
-    """Get all pending claims for admin review."""
+    """Get all pending claims for admin review.
+    
+    SECURITY: claimed_code and claim_message are decrypted before returning.
+    """
     async with get_connection() as conn:
         rows = await conn.fetch(
             """
-            SELECT id, conversation_id, claimed_code, linkedin_profile, claim_message, 
+            SELECT id, conversation_id, claimed_code, email, claim_message, 
                    ip_address, created_at, status
             FROM winner_claims
             WHERE status = 'pending'
@@ -647,9 +701,9 @@ async def get_pending_claims() -> list[dict]:
             {
                 "id": row["id"],
                 "conversation_id": row["conversation_id"],
-                "claimed_code": row["claimed_code"],
-                "linkedin_profile": row["linkedin_profile"],
-                "claim_message": row["claim_message"],
+                "claimed_code": decrypt_field(row["claimed_code"]),
+                "email": row["email"],
+                "claim_message": decrypt_field(row["claim_message"]),
                 "ip_address": row["ip_address"],
                 "created_at": row["created_at"].isoformat() if row["created_at"] else None,
                 "status": row["status"]
@@ -659,11 +713,14 @@ async def get_pending_claims() -> list[dict]:
 
 
 async def get_all_claims() -> list[dict]:
-    """Get all claims for admin view."""
+    """Get all claims for admin view.
+    
+    SECURITY: claimed_code and claim_message are decrypted before returning.
+    """
     async with get_connection() as conn:
         rows = await conn.fetch(
             """
-            SELECT id, conversation_id, claimed_code, linkedin_profile, claim_message, 
+            SELECT id, conversation_id, claimed_code, email, claim_message, 
                    ip_address, created_at, status, reviewed_at, reviewed_by, review_notes
             FROM winner_claims
             ORDER BY created_at DESC
@@ -673,9 +730,9 @@ async def get_all_claims() -> list[dict]:
             {
                 "id": row["id"],
                 "conversation_id": row["conversation_id"],
-                "claimed_code": row["claimed_code"],
-                "linkedin_profile": row["linkedin_profile"],
-                "claim_message": row["claim_message"],
+                "claimed_code": decrypt_field(row["claimed_code"]),
+                "email": row["email"],
+                "claim_message": decrypt_field(row["claim_message"]),
                 "ip_address": row["ip_address"],
                 "created_at": row["created_at"].isoformat() if row["created_at"] else None,
                 "status": row["status"],
@@ -749,3 +806,232 @@ async def link_claim_to_redemption(claim_id: int, redemption_id: int) -> bool:
         logger.error(f"Failed to link claim to redemption: {e}")
         return False
 
+
+# ===========================================
+# CLAIM VALIDATION & RATE LIMITING
+# ===========================================
+
+async def validate_conversation_for_claim(conversation_id: str) -> tuple[bool, str]:
+    """
+    Validate that a conversation exists and has meaningful activity.
+    
+    Returns:
+        (True, "OK") if valid
+        (False, "error message") if invalid
+    """
+    async with get_connection() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT message_count, has_code_leak, created_at 
+            FROM conversations 
+            WHERE id = $1
+            """,
+            conversation_id
+        )
+        
+        if not row:
+            return False, "Conversation nicht gefunden"
+        
+        # Mindestens 2 Nachrichten (User-Frage + AI-Antwort)
+        if row["message_count"] < 2:
+            return False, "Keine gültige Spielsitzung"
+        
+        return True, "OK"
+
+
+async def count_claims_by_ip(ip_address: str, hours: int = 24) -> int:
+    """Count claims from an IP address in the last X hours for rate limiting."""
+    async with get_connection() as conn:
+        return await conn.fetchval(
+            """
+            SELECT COUNT(*) FROM winner_claims
+            WHERE ip_address = $1 AND created_at > NOW() - INTERVAL '%s hours'
+            """ % hours,
+            ip_address
+        ) or 0
+
+
+async def has_pending_claim_for_conversation(conversation_id: str) -> bool:
+    """Check if there's already a pending claim for this conversation."""
+    async with get_connection() as conn:
+        count = await conn.fetchval(
+            """
+            SELECT COUNT(*) FROM winner_claims 
+            WHERE conversation_id = $1 AND status = 'pending'
+            """,
+            conversation_id
+        )
+        return count > 0
+
+
+# ===========================================
+# EMAIL VERIFICATION (Double Opt-In)
+# ===========================================
+
+async def create_email_verification(
+    email: str,
+    code: str,
+    conversation_id: str,
+    ip_address: str | None = None,
+    expiry_minutes: int = 10
+) -> int | None:
+    """
+    Create a new email verification code.
+    
+    Returns the verification ID or None on failure.
+    
+    SECURITY: Verification code is encrypted at rest.
+    Email is stored in plain text for lookup purposes.
+    """
+    try:
+        async with get_connection() as conn:
+            # First, invalidate any existing unverified codes for this email/conversation
+            await conn.execute(
+                """
+                DELETE FROM email_verifications 
+                WHERE email = $1 AND conversation_id = $2 AND verified_at IS NULL
+                """,
+                email, conversation_id
+            )
+            
+            # Create new verification
+            created_at = datetime.utcnow()
+            expires_at = created_at + timedelta(minutes=expiry_minutes)
+            
+            row = await conn.fetchrow(
+                """
+                INSERT INTO email_verifications 
+                (email, code, conversation_id, created_at, expires_at, ip_address)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                RETURNING id
+                """,
+                email,  # Not encrypted - needed for lookup
+                encrypt_field(code),
+                conversation_id,
+                created_at,
+                expires_at,
+                ip_address
+            )
+            return row["id"] if row else None
+    except Exception as e:
+        logger.error(f"Failed to create email verification: {e}")
+        return None
+
+
+async def verify_email_code(
+    email: str,
+    code: str,
+    conversation_id: str
+) -> tuple[bool, str]:
+    """
+    Verify an email code.
+    
+    Returns:
+        (True, "OK") if verified successfully
+        (False, "error message") if verification failed
+        
+    SECURITY: Stored code is decrypted for comparison.
+    """
+    try:
+        async with get_connection() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT id, code, expires_at, verified_at 
+                FROM email_verifications
+                WHERE email = $1 AND conversation_id = $2
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                email, conversation_id
+            )
+            
+            if not row:
+                return False, "Kein Verifizierungscode gefunden. Bitte fordere einen neuen an."
+            
+            if row["verified_at"]:
+                return True, "OK"  # Already verified
+            
+            if row["expires_at"] < datetime.utcnow():
+                return False, "Verifizierungscode abgelaufen. Bitte fordere einen neuen an."
+            
+            # Decrypt stored code for comparison
+            stored_code = decrypt_field(row["code"])
+            if stored_code != code:
+                return False, "Falscher Verifizierungscode."
+            
+            # Mark as verified
+            await conn.execute(
+                """
+                UPDATE email_verifications 
+                SET verified_at = $1 
+                WHERE id = $2
+                """,
+                datetime.utcnow(), row["id"]
+            )
+            
+            return True, "OK"
+    except Exception as e:
+        logger.error(f"Failed to verify email code: {e}")
+        return False, "Fehler bei der Verifizierung. Bitte versuche es erneut."
+
+
+async def is_email_verified(email: str, conversation_id: str) -> bool:
+    """Check if an email has been verified for a specific conversation."""
+    try:
+        async with get_connection() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT verified_at FROM email_verifications
+                WHERE email = $1 AND conversation_id = $2 AND verified_at IS NOT NULL
+                ORDER BY verified_at DESC
+                LIMIT 1
+                """,
+                email, conversation_id
+            )
+            return row is not None
+    except Exception as e:
+        logger.error(f"Failed to check email verification: {e}")
+        return False
+
+
+async def count_verification_attempts(
+    email: str | None = None,
+    ip_address: str | None = None,
+    hours: int = 1
+) -> int:
+    """
+    Count verification code requests for rate limiting.
+    
+    Can filter by email, IP, or both.
+    """
+    try:
+        async with get_connection() as conn:
+            if email and ip_address:
+                return await conn.fetchval(
+                    """
+                    SELECT COUNT(*) FROM email_verifications
+                    WHERE (email = $1 OR ip_address = $2) 
+                    AND created_at > NOW() - INTERVAL '%s hours'
+                    """ % hours,
+                    email, ip_address
+                ) or 0
+            elif email:
+                return await conn.fetchval(
+                    """
+                    SELECT COUNT(*) FROM email_verifications
+                    WHERE email = $1 AND created_at > NOW() - INTERVAL '%s hours'
+                    """ % hours,
+                    email
+                ) or 0
+            elif ip_address:
+                return await conn.fetchval(
+                    """
+                    SELECT COUNT(*) FROM email_verifications
+                    WHERE ip_address = $1 AND created_at > NOW() - INTERVAL '%s hours'
+                    """ % hours,
+                    ip_address
+                ) or 0
+            return 0
+    except Exception as e:
+        logger.error(f"Failed to count verification attempts: {e}")
+        return 0

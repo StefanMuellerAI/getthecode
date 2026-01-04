@@ -102,9 +102,10 @@ INSERT INTO game_status (id, status) VALUES (1, 'active')
 ON CONFLICT (id) DO NOTHING;
 
 -- Gift codes table - stores Amazon gift codes
+-- SECURITY: code field uses TEXT to accommodate encrypted values
 CREATE TABLE IF NOT EXISTS gift_codes (
     id SERIAL PRIMARY KEY,
-    code VARCHAR(100) NOT NULL,
+    code TEXT NOT NULL,
     value INTEGER NOT NULL DEFAULT 100,
     added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     burned_at TIMESTAMP,
@@ -138,11 +139,13 @@ CREATE INDEX IF NOT EXISTS idx_redemptions_conversation ON redemptions(conversat
 CREATE INDEX IF NOT EXISTS idx_redemptions_expires ON redemptions(expires_at);
 
 -- Winner claims table - for gradual extraction claims
+-- NOTE: email field replaces linkedin_profile (Double Opt-In verification required)
+-- SECURITY: claimed_code and claim_message use TEXT to accommodate encrypted values
 CREATE TABLE IF NOT EXISTS winner_claims (
     id SERIAL PRIMARY KEY,
     conversation_id VARCHAR(50) NOT NULL,
-    claimed_code VARCHAR(100) NOT NULL,
-    linkedin_profile VARCHAR(200),
+    claimed_code TEXT NOT NULL,
+    email VARCHAR(255) NOT NULL,
     claim_message TEXT,
     ip_address VARCHAR(45),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -156,6 +159,27 @@ CREATE TABLE IF NOT EXISTS winner_claims (
 CREATE INDEX IF NOT EXISTS idx_claims_status ON winner_claims(status);
 CREATE INDEX IF NOT EXISTS idx_claims_conversation ON winner_claims(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_claims_created ON winner_claims(created_at DESC);
+
+-- ===========================================
+-- EMAIL VERIFICATION SYSTEM (Double Opt-In)
+-- ===========================================
+
+-- Email verification codes for claim submissions
+-- SECURITY: code field uses TEXT to accommodate encrypted values
+CREATE TABLE IF NOT EXISTS email_verifications (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) NOT NULL,
+    code TEXT NOT NULL,
+    conversation_id VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL,
+    verified_at TIMESTAMP,
+    ip_address VARCHAR(45)
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_verifications_email ON email_verifications(email, conversation_id);
+CREATE INDEX IF NOT EXISTS idx_email_verifications_expires ON email_verifications(expires_at);
+CREATE INDEX IF NOT EXISTS idx_email_verifications_ip ON email_verifications(ip_address, created_at DESC);
 
 -- Redemption attempts log (for security monitoring)
 CREATE TABLE IF NOT EXISTS redemption_attempts (

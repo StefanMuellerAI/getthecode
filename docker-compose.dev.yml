@@ -108,6 +108,18 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - STATS_SECRET_KEY=${STATS_SECRET_KEY:-dev-stats-secret}
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
+      # SMTP Email Configuration
+      - SMTP_HOST=${SMTP_HOST:-localhost}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL:-noreply@getthecode.stefanai.de}
+      - SMTP_FROM_NAME=${SMTP_FROM_NAME:-GetTheCode by StefanAI}
+      - SMTP_USE_TLS=${SMTP_USE_TLS:-true}
+      - EMAIL_VERIFICATION_EXPIRY_MINUTES=${EMAIL_VERIFICATION_EXPIRY_MINUTES:-10}
+      - EMAIL_VERIFICATION_MAX_ATTEMPTS=${EMAIL_VERIFICATION_MAX_ATTEMPTS:-3}
+      # Database Field Encryption (optional in dev, required in prod)
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
     ports:
       - "8000:8000"
     depends_on:
@@ -137,6 +149,8 @@ services:
       - SECRET_CODE=${SECRET_CODE:-DEV-TEST-CODE-1234}
       - STATS_SECRET_KEY=${STATS_SECRET_KEY:-dev-stats-secret}
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
+      # Database Field Encryption (optional in dev, required in prod)
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
     depends_on:
       - temporal
       - backend

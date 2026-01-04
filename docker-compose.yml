@@ -94,6 +94,18 @@ services:
       - FRONTEND_URL=${FRONTEND_URL:?FRONTEND_URL must be set in .env}
       # PERFORMANCE: Redis for caching
       - REDIS_URL=redis://redis:6379/0
+      # SMTP Email Configuration
+      - SMTP_HOST=${SMTP_HOST:-localhost}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL:-noreply@getthecode.stefanai.de}
+      - SMTP_FROM_NAME=${SMTP_FROM_NAME:-GetTheCode by StefanAI}
+      - SMTP_USE_TLS=${SMTP_USE_TLS:-true}
+      - EMAIL_VERIFICATION_EXPIRY_MINUTES=${EMAIL_VERIFICATION_EXPIRY_MINUTES:-10}
+      - EMAIL_VERIFICATION_MAX_ATTEMPTS=${EMAIL_VERIFICATION_MAX_ATTEMPTS:-3}
+      # Database Field Encryption
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:?ENCRYPTION_KEY must be set in .env}
     # SECURITY: Backend only accessible within Docker network (frontend proxies requests)
     # ports:
     #   - "8000:8000"  # Uncomment only for local development if needed
@@ -126,6 +138,8 @@ services:
       - SECRET_CODE=${SECRET_CODE:-PLACEHOLDER}
       - STATS_SECRET_KEY=${STATS_SECRET_KEY:?STATS_SECRET_KEY must be set in .env}
       - FRONTEND_URL=${FRONTEND_URL:?FRONTEND_URL must be set in .env}
+      # Database Field Encryption
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:?ENCRYPTION_KEY must be set in .env}
     depends_on:
       - temporal
       - backend

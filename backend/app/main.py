@@ -9,13 +9,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from app.config import get_settings
 from app.database import get_pool, close_pool
 from app.cache import get_redis_client, close_redis_client
+from app.limiter import limiter
 from app.routers import challenge, stats, redeem
 
 # Configure logging
@@ -23,15 +23,6 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 settings = get_settings()
-
-# PERFORMANCE: Initialize rate limiter with Redis storage for distributed rate limiting
-# This ensures rate limits work correctly across multiple backend instances
-limiter = Limiter(
-    key_func=get_remote_address,
-    storage_uri=settings.redis_url,
-    # Use sliding window algorithm for smoother rate limiting
-    strategy="moving-window",
-)
 
 
 @asynccontextmanager

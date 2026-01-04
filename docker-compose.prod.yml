@@ -148,6 +148,18 @@ services:
       - REDIS_URL=redis://redis:6379/0
       # PERFORMANCE: Adjust worker count based on instance
       - WEB_CONCURRENCY=4
+      # SMTP Email Configuration (required for claims)
+      - SMTP_HOST=${SMTP_HOST:?SMTP_HOST must be set in .env}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:?SMTP_USER must be set in .env}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:?SMTP_PASSWORD must be set in .env}
+      - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL:?SMTP_FROM_EMAIL must be set in .env}
+      - SMTP_FROM_NAME=${SMTP_FROM_NAME:-GetTheCode by StefanAI}
+      - SMTP_USE_TLS=${SMTP_USE_TLS:-true}
+      - EMAIL_VERIFICATION_EXPIRY_MINUTES=${EMAIL_VERIFICATION_EXPIRY_MINUTES:-10}
+      - EMAIL_VERIFICATION_MAX_ATTEMPTS=${EMAIL_VERIFICATION_MAX_ATTEMPTS:-3}
+      # SECURITY: Database Field Encryption
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:?ENCRYPTION_KEY must be set in .env}
     # SECURITY: No external port exposure
     expose:
       - "8000"
@@ -192,6 +204,8 @@ services:
       - FRONTEND_URL=${FRONTEND_URL:?FRONTEND_URL must be set in .env}
       # PERFORMANCE: Redis for any caching needs
       - REDIS_URL=redis://redis:6379/0
+      # SECURITY: Database Field Encryption
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:?ENCRYPTION_KEY must be set in .env}
     depends_on:
       - temporal
       - backend

@@ -119,7 +119,7 @@ class ClaimItem(BaseModel):
     id: int
     conversation_id: str
     claimed_code: str
-    linkedin_profile: Optional[str]
+    email: str
     claim_message: Optional[str]
     ip_address: Optional[str]
     created_at: Optional[str]
@@ -399,8 +399,9 @@ async def approve_winner_claim(
         
         if redemption_id:
             await link_claim_to_redemption(claim_id, redemption_id)
-            # Update game status to won
-            await set_game_status("won", result["conversation_id"])
+            # Update game status to pending_claim (pauses the game)
+            # Status changes to "redeemed" when the winner actually redeems the codes
+            await set_game_status("pending_claim", result["conversation_id"])
         
         return ClaimReviewResponse(
             success=True,

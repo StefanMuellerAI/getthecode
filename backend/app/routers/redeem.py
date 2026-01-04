@@ -4,9 +4,10 @@ SECURITY: This router handles sensitive gift code redemption.
 All endpoints have strict validation and rate limiting.
 """
 import logging
+import re
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Request, Header
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.config import get_settings
 from app.database import (
@@ -19,8 +20,17 @@ from app.database import (
     get_game_status,
     get_jackpot_value,
     create_claim,
+    validate_conversation_for_claim,
+    count_claims_by_ip,
+    has_pending_claim_for_conversation,
+    create_email_verification,
+    verify_email_code,
+    is_email_verified,
+    count_verification_attempts,
 )
+from app.limiter import limiter
 from app.cache import cache_delete, CACHE_KEY_JACKPOT
+from app.email import generate_verification_code, send_verification_email, send_claim_confirmation_email
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -51,15 +61,78 @@ class ClaimRequest(BaseModel):
     """Request to claim a win for gradual extraction."""
     conversation_id: str = Field(..., min_length=1, max_length=100)
     claimed_code: str = Field(..., min_length=1, max_length=100)
-    linkedin_profile: str = Field(..., min_length=1, max_length=200)
+    email: str = Field(..., min_length=5, max_length=255)
     claim_message: Optional[str] = Field(None, max_length=1000)
     website: Optional[str] = Field(None, max_length=500)  # Honeypot field
+    
+    @field_validator('email')
+    @classmethod
+    def validate_email(cls, v: str) -> str:
+        """Validate email format."""
+        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_pattern, v):
+            raise ValueError('Ungültige E-Mail-Adresse')
+        return v.lower().strip()
 
 
 class ClaimResponse(BaseModel):
     """Response to a claim submission."""
     success: bool
     claim_id: Optional[int] = None
+    message: str
+
+
+# --- Email Verification Models ---
+
+class SendVerificationCodeRequest(BaseModel):
+    """Request to send a verification code."""
+    email: str = Field(..., min_length=5, max_length=255)
+    conversation_id: str = Field(..., min_length=1, max_length=100)
+    
+    @field_validator('email')
+    @classmethod
+    def validate_email(cls, v: str) -> str:
+        """Validate email format."""
+        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_pattern, v):
+            raise ValueError('Ungültige E-Mail-Adresse')
+        return v.lower().strip()
+
+
+class SendVerificationCodeResponse(BaseModel):
+    """Response after sending verification code."""
+    success: bool
+    message: str
+
+
+class VerifyEmailCodeRequest(BaseModel):
+    """Request to verify an email code."""
+    email: str = Field(..., min_length=5, max_length=255)
+    code: str = Field(..., min_length=6, max_length=6)
+    conversation_id: str = Field(..., min_length=1, max_length=100)
+    
+    @field_validator('email')
+    @classmethod
+    def validate_email(cls, v: str) -> str:
+        """Validate email format."""
+        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_pattern, v):
+            raise ValueError('Ungültige E-Mail-Adresse')
+        return v.lower().strip()
+    
+    @field_validator('code')
+    @classmethod
+    def validate_code(cls, v: str) -> str:
+        """Validate code is 6 digits."""
+        if not v.isdigit() or len(v) != 6:
+            raise ValueError('Code muss 6 Ziffern haben')
+        return v
+
+
+class VerifyEmailCodeResponse(BaseModel):
+    """Response after verifying email code."""
+    success: bool
+    verified: bool
     message: str
 
 
@@ -227,7 +300,114 @@ async def redeem_codes(
     )
 
 
+# --- Email Verification Endpoints ---
+
+@router.post("/send-verification-code", response_model=SendVerificationCodeResponse)
+@limiter.limit("5/hour")
+async def send_verification_code(
+    req: SendVerificationCodeRequest,
+    request: Request
+):
+    """
+    Send a verification code to the provided email address.
+    
+    SECURITY:
+    - Rate limited to 5 requests per hour per IP
+    - Max 3 codes per email per hour
+    - Validates conversation exists
+    """
+    client_ip = get_client_ip(request)
+    
+    # Validate conversation exists
+    is_valid, error_msg = await validate_conversation_for_claim(req.conversation_id)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_msg)
+    
+    # Rate limiting - check attempts for this email/IP
+    attempts = await count_verification_attempts(
+        email=req.email,
+        ip_address=client_ip,
+        hours=1
+    )
+    
+    max_attempts = settings.email_verification_max_attempts
+    if attempts >= max_attempts:
+        logger.warning(f"Verification rate limit exceeded for {req.email} / {client_ip}")
+        raise HTTPException(
+            status_code=429,
+            detail=f"Zu viele Anfragen. Bitte warte eine Stunde."
+        )
+    
+    # Generate and store verification code
+    code = generate_verification_code()
+    
+    verification_id = await create_email_verification(
+        email=req.email,
+        code=code,
+        conversation_id=req.conversation_id,
+        ip_address=client_ip,
+        expiry_minutes=settings.email_verification_expiry_minutes
+    )
+    
+    if not verification_id:
+        raise HTTPException(
+            status_code=500,
+            detail="Fehler beim Erstellen des Codes. Bitte versuche es erneut."
+        )
+    
+    # Send email
+    email_sent = send_verification_email(req.email, code)
+    
+    if not email_sent:
+        logger.error(f"Failed to send verification email to {req.email}")
+        raise HTTPException(
+            status_code=500,
+            detail="E-Mail konnte nicht gesendet werden. Bitte überprüfe die Adresse."
+        )
+    
+    logger.info(f"Verification code sent to {req.email[:3]}***")
+    
+    return SendVerificationCodeResponse(
+        success=True,
+        message="Verifizierungscode wurde gesendet. Bitte überprüfe dein Postfach."
+    )
+
+
+@router.post("/verify-email-code", response_model=VerifyEmailCodeResponse)
+@limiter.limit("10/hour")
+async def verify_email_code_endpoint(
+    req: VerifyEmailCodeRequest,
+    request: Request
+):
+    """
+    Verify the email code entered by the user.
+    
+    SECURITY:
+    - Rate limited to 10 attempts per hour per IP
+    - Code expires after 10 minutes
+    """
+    client_ip = get_client_ip(request)
+    
+    verified, message = await verify_email_code(
+        email=req.email,
+        code=req.code,
+        conversation_id=req.conversation_id
+    )
+    
+    if verified:
+        logger.info(f"Email verified: {req.email[:3]}*** for conversation {req.conversation_id}")
+    else:
+        logger.warning(f"Email verification failed for {req.email[:3]}*** from {client_ip}: {message}")
+    
+    return VerifyEmailCodeResponse(
+        success=True,
+        verified=verified,
+        message=message if not verified else "E-Mail erfolgreich verifiziert!"
+    )
+
+
 @router.post("/claim", response_model=ClaimResponse)
+@limiter.limit("3/hour")
 async def submit_claim(
     claim: ClaimRequest,
     request: Request
@@ -239,6 +419,14 @@ async def submit_claim(
     and the automatic detection didn't catch it.
     
     Claims will be reviewed by an admin.
+    
+    SECURITY:
+    - Rate limited to 3 claims per hour per IP
+    - Validates conversation exists and has activity
+    - Max 5 claims per IP per 24 hours
+    - Only one pending claim per conversation allowed
+    - Email must be verified via Double Opt-In
+    - Game is NOT paused until admin approves the claim
     """
     client_ip = get_client_ip(request)
     
@@ -252,11 +440,46 @@ async def submit_claim(
             message="Dein Anspruch wurde eingereicht! Ein Admin wird ihn prüfen."
         )
     
+    # SECURITY: Validate conversation exists and has meaningful activity
+    is_valid, error_msg = await validate_conversation_for_claim(claim.conversation_id)
+    if not is_valid:
+        logger.warning(f"Invalid conversation claim attempt from IP {client_ip}: {error_msg}")
+        raise HTTPException(
+            status_code=400,
+            detail=error_msg
+        )
+    
+    # SECURITY: Verify email is verified via Double Opt-In
+    email_verified = await is_email_verified(claim.email, claim.conversation_id)
+    if not email_verified:
+        logger.warning(f"Unverified email claim attempt from IP {client_ip}: {claim.email}")
+        raise HTTPException(
+            status_code=400,
+            detail="E-Mail-Adresse nicht verifiziert. Bitte verifiziere zuerst deine E-Mail."
+        )
+    
+    # SECURITY: Check IP-based daily limit (max 5 claims per 24h)
+    ip_claim_count = await count_claims_by_ip(client_ip, hours=24)
+    if ip_claim_count >= 5:
+        logger.warning(f"IP claim limit exceeded for {client_ip}")
+        raise HTTPException(
+            status_code=429,
+            detail="Zu viele Claims von dieser IP. Bitte warte 24 Stunden."
+        )
+    
+    # SECURITY: Check if this conversation already has a pending claim
+    if await has_pending_claim_for_conversation(claim.conversation_id):
+        logger.warning(f"Duplicate claim attempt for conversation {claim.conversation_id}")
+        raise HTTPException(
+            status_code=409,
+            detail="Für diese Conversation gibt es bereits einen offenen Claim."
+        )
+    
     # Create the claim
     claim_id = await create_claim(
         conversation_id=claim.conversation_id,
         claimed_code=claim.claimed_code,
-        linkedin_profile=claim.linkedin_profile,
+        email=claim.email,
         claim_message=claim.claim_message,
         ip_address=client_ip
     )
@@ -267,19 +490,26 @@ async def submit_claim(
             detail="Fehler beim Erstellen des Claims. Bitte versuche es später erneut."
         )
     
-    # Update game status to pending_claim
-    await set_game_status("pending_claim", claim.conversation_id)
-    
-    # Invalidate jackpot cache
-    await cache_delete(CACHE_KEY_JACKPOT)
+    # NOTE: Game status is NOT changed here anymore!
+    # The game continues running. Status changes only when admin approves the claim.
     
     logger.info(
         f"New claim submitted: {claim_id} for conversation {claim.conversation_id}"
     )
     
+    # Send confirmation email to user
+    email_sent = send_claim_confirmation_email(
+        to_email=claim.email,
+        claim_id=claim_id,
+        claimed_code=claim.claimed_code
+    )
+    
+    if not email_sent:
+        logger.warning(f"Failed to send claim confirmation email to {claim.email[:3]}***")
+    
     return ClaimResponse(
         success=True,
         claim_id=claim_id,
-        message="Dein Gewinn-Anspruch wurde eingereicht und wird vom Admin geprüft."
+        message="Dein Gewinn-Anspruch wurde eingereicht und wird vom Admin geprüft. Du erhältst eine Bestätigung per E-Mail."
     )
 

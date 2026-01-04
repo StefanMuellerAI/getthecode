@@ -50,6 +50,23 @@ class Settings(BaseSettings):
     # Frontend URL for generating redemption links
     frontend_url: str = "http://localhost:3000"
     
+    # SMTP Configuration for email verification
+    smtp_host: str = "localhost"
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from_email: str = "noreply@getthecode.stefanai.de"
+    smtp_from_name: str = "GetTheCode by StefanAI"
+    smtp_use_tls: bool = True
+    
+    # Email verification settings
+    email_verification_expiry_minutes: int = 10
+    email_verification_max_attempts: int = 3  # Max code requests per email/hour
+    
+    # SECURITY: Database field encryption
+    # Generate with: python -c "import os, base64; print(base64.b64encode(os.urandom(32)).decode())"
+    encryption_key: str = ""  # 32-byte base64-encoded key, empty = encryption disabled
+    
     @field_validator('cors_origins', mode='before')
     @classmethod
     def parse_cors_origins(cls, v):
@@ -83,6 +100,16 @@ class Settings(BaseSettings):
             # Validate stats secret key
             if not self.stats_secret_key or "dev" in self.stats_secret_key.lower():
                 raise ValueError("STATS_SECRET_KEY must be set to a secure value in production")
+            
+            # Validate SMTP settings
+            if not self.smtp_host or self.smtp_host == "localhost":
+                raise ValueError("SMTP_HOST must be configured for production")
+            if not self.smtp_user or not self.smtp_password:
+                raise ValueError("SMTP_USER and SMTP_PASSWORD must be provided in production")
+            
+            # Validate encryption key
+            if not self.encryption_key:
+                raise ValueError("ENCRYPTION_KEY must be set in production for database field encryption")
         
         return self
     

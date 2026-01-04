@@ -9,11 +9,101 @@ interface ClaimModalProps {
 
 export default function ClaimModal({ conversationId, onClose }: ClaimModalProps) {
   const [claimedCode, setClaimedCode] = useState('');
-  const [linkedinProfile, setLinkedinProfile] = useState('');
+  const [email, setEmail] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
   const [claimMessage, setClaimMessage] = useState('');
   const [website, setWebsite] = useState(''); // Honeypot field
+  
+  // Email verification state
+  const [codeSent, setCodeSent] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [sendingCode, setSendingCode] = useState(false);
+  const [verifyingCode, setVerifyingCode] = useState(false);
+  const [verificationError, setVerificationError] = useState('');
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Email validation
+  const isValidEmail = (email: string) => {
+    const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    return emailPattern.test(email);
+  };
+
+  // Send verification code
+  const handleSendCode = async () => {
+    if (!isValidEmail(email)) {
+      setVerificationError('Bitte gib eine gültige E-Mail-Adresse ein.');
+      return;
+    }
+
+    setSendingCode(true);
+    setVerificationError('');
+
+    try {
+      const response = await fetch('/api/send-verification-code', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: email.toLowerCase().trim(),
+          conversation_id: conversationId,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setCodeSent(true);
+        setVerificationError('');
+      } else {
+        setVerificationError(data.message || data.detail || 'Fehler beim Senden des Codes.');
+      }
+    } catch (error) {
+      setVerificationError('Verbindungsfehler. Bitte versuche es später erneut.');
+    } finally {
+      setSendingCode(false);
+    }
+  };
+
+  // Verify email code
+  const handleVerifyCode = async () => {
+    if (verificationCode.length !== 6) {
+      setVerificationError('Bitte gib den 6-stelligen Code ein.');
+      return;
+    }
+
+    setVerifyingCode(true);
+    setVerificationError('');
+
+    try {
+      const response = await fetch('/api/verify-email-code', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: email.toLowerCase().trim(),
+          code: verificationCode,
+          conversation_id: conversationId,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.verified) {
+        setEmailVerified(true);
+        setVerificationError('');
+      } else {
+        setVerificationError(data.message || 'Falscher Code. Bitte versuche es erneut.');
+      }
+    } catch (error) {
+      setVerificationError('Verbindungsfehler. Bitte versuche es später erneut.');
+    } finally {
+      setVerifyingCode(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,8 +113,13 @@ export default function ClaimModal({ conversationId, onClose }: ClaimModalProps)
       return;
     }
     
-    if (!linkedinProfile.trim()) {
-      setResult({ success: false, message: 'Bitte gib dein LinkedIn-Profil an.' });
+    if (!email.trim() || !isValidEmail(email)) {
+      setResult({ success: false, message: 'Bitte gib eine gültige E-Mail-Adresse an.' });
+      return;
+    }
+
+    if (!emailVerified) {
+      setResult({ success: false, message: 'Bitte verifiziere zuerst deine E-Mail-Adresse.' });
       return;
     }
 
@@ -40,7 +135,7 @@ export default function ClaimModal({ conversationId, onClose }: ClaimModalProps)
         body: JSON.stringify({
           conversation_id: conversationId,
           claimed_code: claimedCode.trim(),
-          linkedin_profile: linkedinProfile.trim(),
+          email: email.toLowerCase().trim(),
           claim_message: claimMessage.trim() || null,
           website: website, // Honeypot - should be empty for humans
         }),
@@ -52,8 +147,11 @@ export default function ClaimModal({ conversationId, onClose }: ClaimModalProps)
       if (data.success) {
         // Clear form on success
         setClaimedCode('');
-        setLinkedinProfile('');
+        setEmail('');
+        setVerificationCode('');
         setClaimMessage('');
+        setCodeSent(false);
+        setEmailVerified(false);
       }
     } catch (error) {
       setResult({ 
@@ -67,7 +165,7 @@ export default function ClaimModal({ conversationId, onClose }: ClaimModalProps)
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#0d1117] border border-[#30363d] rounded-xl max-w-lg w-full p-6 shadow-2xl">
+      <div className="bg-[#0d1117] border border-[#30363d] rounded-xl max-w-lg w-full p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex justify-between items-start mb-6">
           <div>
@@ -146,23 +244,94 @@ export default function ClaimModal({ conversationId, onClose }: ClaimModalProps)
               />
             </div>
 
-            {/* LinkedIn Profile Input */}
+            {/* Email Input with Verification */}
             <div>
               <label className="block text-sm text-gray-300 mb-2">
-                Dein LinkedIn-Profil *
+                Deine E-Mail-Adresse *
               </label>
-              <input
-                type="text"
-                value={linkedinProfile}
-                onChange={(e) => setLinkedinProfile(e.target.value)}
-                placeholder="z.B. linkedin.com/in/dein-name"
-                className="w-full bg-[#161b22] border border-[#30363d] rounded-lg px-4 py-3 text-white focus:border-terminal-green focus:outline-none"
-                disabled={isSubmitting}
-              />
+              <div className="flex gap-2">
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    // Reset verification if email changes
+                    if (codeSent && e.target.value.toLowerCase().trim() !== email.toLowerCase().trim()) {
+                      setCodeSent(false);
+                      setEmailVerified(false);
+                      setVerificationCode('');
+                    }
+                  }}
+                  placeholder="deine@email.de"
+                  className={`flex-1 bg-[#161b22] border rounded-lg px-4 py-3 text-white focus:outline-none ${
+                    emailVerified 
+                      ? 'border-green-500 focus:border-green-500' 
+                      : 'border-[#30363d] focus:border-terminal-green'
+                  }`}
+                  disabled={isSubmitting || emailVerified}
+                />
+                {!emailVerified && (
+                  <button
+                    type="button"
+                    onClick={handleSendCode}
+                    disabled={!isValidEmail(email) || sendingCode || isSubmitting}
+                    className="px-4 py-3 bg-terminal-cyan text-black font-medium rounded-lg hover:bg-terminal-cyan/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                  >
+                    {sendingCode ? '⏳' : codeSent ? '🔄 Erneut' : '📧 Code senden'}
+                  </button>
+                )}
+                {emailVerified && (
+                  <div className="flex items-center px-4 py-3 bg-green-500/20 border border-green-500/50 rounded-lg text-green-400">
+                    ✓ Verifiziert
+                  </div>
+                )}
+              </div>
               <p className="text-xs text-gray-500 mt-1">
-                Wir kontaktieren dich über LinkedIn für den Gewinn.
+                Wir kontaktieren dich über diese E-Mail für den Gewinn.
               </p>
             </div>
+
+            {/* Verification Code Input - only show if code was sent and not yet verified */}
+            {codeSent && !emailVerified && (
+              <div className="bg-[#161b22] border border-terminal-cyan/30 rounded-lg p-4">
+                <label className="block text-sm text-terminal-cyan mb-2">
+                  📬 Verifizierungscode eingeben
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={verificationCode}
+                    onChange={(e) => {
+                      // Only allow digits, max 6 characters
+                      const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                      setVerificationCode(value);
+                    }}
+                    placeholder="6-stelliger Code"
+                    className="flex-1 bg-[#0d1117] border border-[#30363d] rounded-lg px-4 py-3 text-white font-mono text-center text-xl tracking-widest focus:border-terminal-cyan focus:outline-none"
+                    maxLength={6}
+                    disabled={verifyingCode}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleVerifyCode}
+                    disabled={verificationCode.length !== 6 || verifyingCode}
+                    className="px-4 py-3 bg-terminal-cyan text-black font-medium rounded-lg hover:bg-terminal-cyan/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {verifyingCode ? '⏳' : '✓ Prüfen'}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-400 mt-2">
+                  Überprüfe dein E-Mail-Postfach (auch Spam-Ordner).
+                </p>
+              </div>
+            )}
+
+            {/* Verification Error */}
+            {verificationError && (
+              <div className="p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm">
+                {verificationError}
+              </div>
+            )}
 
             {/* Explanation Input */}
             <div>
@@ -185,7 +354,7 @@ export default function ClaimModal({ conversationId, onClose }: ClaimModalProps)
                 <span>ℹ️</span>
                 <span>
                   Ein Admin wird deinen Anspruch prüfen und den Chat-Verlauf analysieren. 
-                  Bei Bestätigung erhältst du einen Link zur Code-Einlösung.
+                  Bei Bestätigung erhältst du einen Link zur Code-Einlösung per E-Mail.
                 </span>
               </p>
             </div>
@@ -202,7 +371,7 @@ export default function ClaimModal({ conversationId, onClose }: ClaimModalProps)
               </button>
               <button
                 type="submit"
-                disabled={isSubmitting || !claimedCode.trim() || !linkedinProfile.trim()}
+                disabled={isSubmitting || !claimedCode.trim() || !emailVerified}
                 className="flex-1 px-4 py-3 bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-bold rounded-lg hover:from-amber-400 hover:to-yellow-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? '⏳ Senden...' : '🏆 Anspruch einreichen'}
@@ -225,4 +394,3 @@ export default function ClaimModal({ conversationId, onClose }: ClaimModalProps)
     </div>
   );
 }
-
