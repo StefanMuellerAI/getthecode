@@ -15,6 +15,7 @@ from app.database import (
     get_conversations,
     get_conversation_messages,
     get_conversation_count,
+    search_user_messages,
     get_all_gift_codes,
     add_gift_code,
     get_all_claims,
@@ -161,6 +162,21 @@ class ResetGameRequest(BaseModel):
     new_status: str = "active"
 
 
+class SearchResultItem(BaseModel):
+    """A single search result."""
+    id: int
+    conversation_id: str
+    content: str
+    created_at: Optional[str]
+
+
+class SearchResponse(BaseModel):
+    """Response from message search."""
+    results: list[SearchResultItem]
+    query: str
+    count: int
+
+
 def verify_secret_key(secret_key: str) -> None:
     """Verify the secret key matches the configured value."""
     if secret_key != settings.stats_secret_key:
@@ -263,6 +279,39 @@ async def get_conversation_detail(secret_key: str, conversation_id: str):
         raise HTTPException(
             status_code=500,
             detail="Failed to retrieve conversation"
+        )
+
+
+# ===========================================
+# MESSAGE SEARCH
+# ===========================================
+
+@router.get("/{secret_key}/search", response_model=SearchResponse)
+async def search_messages(
+    secret_key: str,
+    q: str = Query(..., min_length=2, max_length=100, description="Search query")
+):
+    """
+    Search user messages for a given query string.
+    
+    Only searches in user messages (role = 'user').
+    Returns matching messages with conversation links.
+    """
+    verify_secret_key(secret_key)
+    
+    try:
+        results = await search_user_messages(query=q, limit=50)
+        
+        return SearchResponse(
+            results=[SearchResultItem(**r) for r in results],
+            query=q,
+            count=len(results)
+        )
+    except Exception as e:
+        logger.error(f"Failed to search messages: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to search messages"
         )
 
 

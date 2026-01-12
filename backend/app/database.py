@@ -353,6 +353,53 @@ async def get_conversation_count() -> int:
         return await conn.fetchval("SELECT COUNT(*) FROM conversations") or 0
 
 
+async def search_user_messages(query: str, limit: int = 50) -> list[dict]:
+    """Search user messages for a given query string.
+    
+    Searches only in user messages (role = 'user').
+    Since content is encrypted, we fetch all user messages,
+    decrypt them, and filter in Python.
+    
+    SECURITY: content is decrypted for searching and returned.
+    
+    Args:
+        query: Search term (case-insensitive)
+        limit: Maximum number of results to return
+        
+    Returns:
+        List of matching messages with conversation_id, content, and created_at
+    """
+    if not query or len(query) < 2:
+        return []
+    
+    query_lower = query.lower()
+    results = []
+    
+    async with get_connection() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, conversation_id, content, created_at
+            FROM messages
+            WHERE role = 'user'
+            ORDER BY created_at DESC
+            """
+        )
+        
+        for row in rows:
+            decrypted_content = decrypt_field(row["content"])
+            if decrypted_content and query_lower in decrypted_content.lower():
+                results.append({
+                    "id": row["id"],
+                    "conversation_id": row["conversation_id"],
+                    "content": decrypted_content,
+                    "created_at": row["created_at"].isoformat() if row["created_at"] else None
+                })
+                if len(results) >= limit:
+                    break
+    
+    return results
+
+
 # ===========================================
 # GIFT CODE REDEMPTION SYSTEM
 # ===========================================

@@ -67,6 +67,13 @@ interface GameStatus {
   last_win_at: string | null;
 }
 
+interface SearchResult {
+  id: number;
+  conversation_id: string;
+  content: string;
+  created_at: string | null;
+}
+
 type TabType = 'conversations' | 'codes' | 'claims' | 'status';
 
 export default function StatsPage() {
@@ -90,6 +97,12 @@ export default function StatsPage() {
   const [newCode, setNewCode] = useState({ code: '', value: 100 });
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [redemptionModal, setRedemptionModal] = useState<{ url: string; message: string } | null>(null);
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearchResults, setShowSearchResults] = useState(false);
 
   const fetchOverview = useCallback(async () => {
     try {
@@ -233,6 +246,40 @@ export default function StatsPage() {
     }
   };
 
+  // Debounced search
+  useEffect(() => {
+    if (searchQuery.length < 2) {
+      setSearchResults([]);
+      setShowSearchResults(false);
+      return;
+    }
+
+    const timeoutId = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const res = await fetch(`/api/stats/${secretKey}/search?q=${encodeURIComponent(searchQuery)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setSearchResults(data.results);
+          setShowSearchResults(true);
+        }
+      } catch (err) {
+        console.error('Error searching:', err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery, secretKey]);
+
+  const handleSearchResultClick = (conversationId: string) => {
+    setActiveTab('conversations');
+    setSelectedConversation(conversationId);
+    setShowSearchResults(false);
+    setSearchQuery('');
+  };
+
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
@@ -339,33 +386,81 @@ export default function StatsPage() {
         </div>
       )}
 
-      {/* Tab Navigation */}
-      <div className="w-full max-w-6xl flex gap-2 mb-4 overflow-x-auto">
-        {[
-          { key: 'conversations' as TabType, label: '💬 Conversations', count: conversations.length },
-          { key: 'codes' as TabType, label: '🎁 Gift Codes', count: giftCodes.filter(c => c.is_available).length },
-          { key: 'claims' as TabType, label: '🏆 Claims', count: claims.filter(c => c.status === 'pending').length },
-          { key: 'status' as TabType, label: '⚙️ Game Status' },
-        ].map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`px-4 py-2 rounded-t-lg font-bold text-sm transition-all whitespace-nowrap ${
-              activeTab === tab.key
-                ? 'bg-terminal-green text-black'
-                : 'bg-[#21262d] text-gray-400 hover:bg-[#30363d]'
-            }`}
-          >
-            {tab.label}
-            {tab.count !== undefined && tab.count > 0 && (
-              <span className={`ml-2 px-1.5 py-0.5 rounded text-xs ${
-                activeTab === tab.key ? 'bg-black/20' : 'bg-terminal-green/20 text-terminal-green'
-              }`}>
-                {tab.count}
-              </span>
+      {/* Tab Navigation with Search */}
+      <div className="w-full max-w-6xl flex flex-wrap items-center gap-2 mb-4">
+        <div className="flex gap-2 overflow-x-auto flex-1">
+          {[
+            { key: 'conversations' as TabType, label: '💬 Conversations', count: conversations.length },
+            { key: 'codes' as TabType, label: '🎁 Gift Codes', count: giftCodes.filter(c => c.is_available).length },
+            { key: 'claims' as TabType, label: '🏆 Claims', count: claims.filter(c => c.status === 'pending').length },
+            { key: 'status' as TabType, label: '⚙️ Game Status' },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`px-4 py-2 rounded-t-lg font-bold text-sm transition-all whitespace-nowrap ${
+                activeTab === tab.key
+                  ? 'bg-terminal-green text-black'
+                  : 'bg-[#21262d] text-gray-400 hover:bg-[#30363d]'
+              }`}
+            >
+              {tab.label}
+              {tab.count !== undefined && tab.count > 0 && (
+                <span className={`ml-2 px-1.5 py-0.5 rounded text-xs ${
+                  activeTab === tab.key ? 'bg-black/20' : 'bg-terminal-green/20 text-terminal-green'
+                }`}>
+                  {tab.count}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+        
+        {/* Search Bar */}
+        <div className="relative">
+          <div className="flex items-center">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="🔍 Nachrichten durchsuchen..."
+              className="bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 w-64 focus:border-terminal-cyan focus:outline-none transition-colors"
+            />
+            {isSearching && (
+              <span className="absolute right-3 text-terminal-green/50 text-xs">...</span>
             )}
-          </button>
-        ))}
+          </div>
+          
+          {/* Search Results Dropdown */}
+          {showSearchResults && searchResults.length > 0 && (
+            <div className="absolute top-full right-0 mt-1 w-96 max-h-80 overflow-y-auto bg-[#0d1117] border border-terminal-cyan/50 rounded-lg shadow-xl z-50">
+              <div className="p-2 border-b border-[#30363d] text-xs text-terminal-green/50">
+                {searchResults.length} Treffer gefunden
+              </div>
+              {searchResults.map((result) => (
+                <button
+                  key={result.id}
+                  onClick={() => handleSearchResultClick(result.conversation_id)}
+                  className="w-full text-left p-3 hover:bg-terminal-cyan/10 border-b border-[#30363d] last:border-b-0 transition-colors"
+                >
+                  <div className="flex justify-between items-start mb-1">
+                    <span className="font-mono text-xs text-terminal-cyan">{result.conversation_id}</span>
+                    <span className="text-xs text-terminal-green/40">{formatDate(result.created_at)}</span>
+                  </div>
+                  <div className="text-sm text-terminal-green/80 line-clamp-2">
+                    {highlightSearchTerm(result.content, searchQuery)}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+          
+          {showSearchResults && searchResults.length === 0 && searchQuery.length >= 2 && !isSearching && (
+            <div className="absolute top-full right-0 mt-1 w-64 bg-[#0d1117] border border-[#30363d] rounded-lg shadow-xl z-50 p-3 text-center text-terminal-green/50 text-sm">
+              Keine Treffer gefunden
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Conversations Tab */}
@@ -938,3 +1033,19 @@ function RefereeDetail({
   );
 }
 
+function highlightSearchTerm(text: string, searchTerm: string): React.ReactNode {
+  if (!searchTerm || searchTerm.length < 2) return text;
+  
+  const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+  const parts = text.split(regex);
+  
+  return parts.map((part, i) => 
+    regex.test(part) ? (
+      <mark key={i} className="bg-terminal-cyan/30 text-terminal-cyan px-0.5 rounded">
+        {part}
+      </mark>
+    ) : (
+      part
+    )
+  );
+}

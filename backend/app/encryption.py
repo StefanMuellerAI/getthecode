@@ -216,3 +216,5 @@ def decrypt_fields(data: dict, fields: list[str]) -> dict:
             result[field] = decrypt_field(result[field])
     return result
 
+
+
