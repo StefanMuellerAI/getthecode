@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'LinkedIn Winter Code Challenge ❄️',
-  description: 'Kannst du die KI austricksen und den geheimen Gutscheincode erhalten? Eine winterliche Prompt-Injection-Challenge!',
+  title: 'Valentine Code Challenge 💕',
+  description: 'Kannst du Amors KI austricksen und den geheimen Gutscheincode erhalten? Eine romantische Prompt-Injection-Challenge zum Valentinstag!',
   icons: {
     icon: '/favicon.ico',
   },
@@ -17,23 +17,28 @@ export default function RootLayout({
   return (
     <html lang="de">
       <body className="crt-flicker">
-        {/* Snowfall effect */}
-        <div className="snowfall">
-          <div className="snowflake">❄</div>
-          <div className="snowflake">❅</div>
-          <div className="snowflake">❆</div>
-          <div className="snowflake">❄</div>
-          <div className="snowflake">❅</div>
-          <div className="snowflake">❆</div>
-          <div className="snowflake">❄</div>
-          <div className="snowflake">❅</div>
-          <div className="snowflake">❆</div>
-          <div className="snowflake">❄</div>
-          <div className="snowflake">❅</div>
-          <div className="snowflake">❆</div>
-          <div className="snowflake">❄</div>
-          <div className="snowflake">❅</div>
-          <div className="snowflake">❆</div>
+        {/* Hearts fall effect */}
+        <div className="heartfall">
+          <div className="heart">💕</div>
+          <div className="heart">❤️</div>
+          <div className="heart">💗</div>
+          <div className="heart">💖</div>
+          <div className="heart">💝</div>
+          <div className="heart">💘</div>
+          <div className="heart">❤️</div>
+          <div className="heart">💕</div>
+          <div className="heart">💗</div>
+          <div className="heart">💖</div>
+          <div className="heart">💝</div>
+          <div className="heart">💘</div>
+          <div className="heart">❤️</div>
+          <div className="heart">💕</div>
+          <div className="heart">💗</div>
+          <div className="heart">💖</div>
+          <div className="heart">💝</div>
+          <div className="heart">💘</div>
+          <div className="heart">❤️</div>
+          <div className="heart">💕</div>
         </div>
         {children}
       </body>

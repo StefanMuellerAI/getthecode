@@ -1,21 +1,23 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&family=Playfair+Display:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --terminal-bg: #0a0a0a;
-  --terminal-surface: #111111;
-  --terminal-border: #1a1a1a;
-  --terminal-green: #00ff41;
-  --terminal-green-dim: #00cc33;
+  --terminal-bg: #0a0808;
+  --terminal-surface: #120a0a;
+  --terminal-border: #2a1515;
+  --terminal-green: #ff69b4;
+  --terminal-green-dim: #ff1493;
   --terminal-amber: #ffb000;
   --terminal-red: #ff3333;
-  --terminal-cyan: #00ffff;
-  --frost-blue: #4fc3f7;
-  --frost-silver: #b0bec5;
-  --frost-deep: #0288d1;
+  --terminal-cyan: #ff6b9d;
+  --valentine-pink: #ff69b4;
+  --valentine-hot: #ff1493;
+  --valentine-rose: #ffb6c1;
+  --valentine-deep: #c41e3a;
+  --valentine-crimson: #dc143c;
 }
 
 * {
@@ -71,23 +73,23 @@ body::before {
 /* Glow text effect */
 .glow-text {
   text-shadow: 
-    0 0 5px var(--terminal-green),
-    0 0 10px var(--terminal-green),
-    0 0 20px var(--terminal-green);
+    0 0 5px var(--valentine-pink),
+    0 0 10px var(--valentine-pink),
+    0 0 20px var(--valentine-pink);
 }
 
-.glow-text-frost {
+.glow-text-love {
   text-shadow: 
-    0 0 5px var(--frost-blue),
-    0 0 10px var(--frost-blue),
-    0 0 20px var(--frost-blue);
+    0 0 5px var(--valentine-crimson),
+    0 0 10px var(--valentine-crimson),
+    0 0 20px var(--valentine-crimson);
 }
 
-.glow-text-silver {
+.glow-text-rose {
   text-shadow: 
-    0 0 5px var(--frost-silver),
-    0 0 10px var(--frost-silver),
-    0 0 20px var(--frost-silver);
+    0 0 5px var(--valentine-rose),
+    0 0 10px var(--valentine-rose),
+    0 0 20px var(--valentine-rose);
 }
 
 /* Typing cursor */
@@ -107,7 +109,8 @@ body::before {
   border: 1px solid var(--terminal-border);
   border-radius: 8px;
   box-shadow: 
-    0 0 20px rgba(79, 195, 247, 0.15),
+    0 0 20px rgba(255, 105, 180, 0.2),
+    0 0 40px rgba(220, 20, 60, 0.1),
     inset 0 0 60px rgba(0, 0, 0, 0.3);
 }
 
@@ -141,12 +144,12 @@ body::before {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--terminal-green-dim);
+  background: var(--valentine-deep);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--terminal-green);
+  background: var(--valentine-crimson);
 }
 
 /* Input styling */
@@ -154,7 +157,7 @@ body::before {
   background: transparent;
   border: none;
   outline: none;
-  color: var(--terminal-green);
+  color: var(--valentine-pink);
   font-family: 'JetBrains Mono', monospace;
   font-size: 14px;
   width: 100%;
@@ -162,11 +165,11 @@ body::before {
 }
 
 .terminal-input::placeholder {
-  color: rgba(0, 255, 65, 0.3);
+  color: rgba(255, 105, 180, 0.3);
 }
 
-/* Snowfall animation */
-.snowfall {
+/* Hearts fall animation */
+.heartfall {
   position: fixed;
   top: 0;
   left: 0;
@@ -177,57 +180,80 @@ body::before {
   overflow: hidden;
 }
 
-.snowflake {
+.heart {
   position: absolute;
-  top: -10px;
-  color: rgba(79, 195, 247, 0.5);
+  top: -20px;
   font-size: 1rem;
-  animation: fall linear infinite;
-  text-shadow: 0 0 8px rgba(79, 195, 247, 0.4);
+  animation: heartfall linear infinite;
+  filter: drop-shadow(0 0 6px rgba(255, 105, 180, 0.6));
 }
 
-@keyframes fall {
+.heart:nth-child(odd) {
+  color: rgba(255, 105, 180, 0.7);
+}
+
+.heart:nth-child(even) {
+  color: rgba(220, 20, 60, 0.6);
+}
+
+@keyframes heartfall {
   0% {
-    transform: translateY(-10px) rotate(0deg);
+    transform: translateY(-20px) rotate(0deg) scale(1);
     opacity: 1;
   }
+  50% {
+    transform: translateY(50vh) rotate(180deg) scale(1.1);
+    opacity: 0.8;
+  }
   100% {
-    transform: translateY(100vh) rotate(360deg);
-    opacity: 0.3;
+    transform: translateY(100vh) rotate(360deg) scale(0.9);
+    opacity: 0.2;
   }
 }
 
-/* Generate multiple snowflakes with different properties */
-.snowflake:nth-child(1) { left: 5%; animation-duration: 10s; animation-delay: 0s; font-size: 0.8rem; }
-.snowflake:nth-child(2) { left: 15%; animation-duration: 12s; animation-delay: 1s; font-size: 1.2rem; }
-.snowflake:nth-child(3) { left: 25%; animation-duration: 8s; animation-delay: 2s; font-size: 0.6rem; }
-.snowflake:nth-child(4) { left: 35%; animation-duration: 14s; animation-delay: 0.5s; font-size: 1rem; }
-.snowflake:nth-child(5) { left: 45%; animation-duration: 9s; animation-delay: 3s; font-size: 0.9rem; }
-.snowflake:nth-child(6) { left: 55%; animation-duration: 11s; animation-delay: 1.5s; font-size: 1.1rem; }
-.snowflake:nth-child(7) { left: 65%; animation-duration: 13s; animation-delay: 2.5s; font-size: 0.7rem; }
-.snowflake:nth-child(8) { left: 75%; animation-duration: 10s; animation-delay: 4s; font-size: 1.3rem; }
-.snowflake:nth-child(9) { left: 85%; animation-duration: 15s; animation-delay: 0.8s; font-size: 0.8rem; }
-.snowflake:nth-child(10) { left: 95%; animation-duration: 7s; animation-delay: 2s; font-size: 1rem; }
-.snowflake:nth-child(11) { left: 10%; animation-duration: 11s; animation-delay: 3.5s; font-size: 0.9rem; }
-.snowflake:nth-child(12) { left: 30%; animation-duration: 9s; animation-delay: 1.2s; font-size: 1.1rem; }
-.snowflake:nth-child(13) { left: 50%; animation-duration: 12s; animation-delay: 4.5s; font-size: 0.6rem; }
-.snowflake:nth-child(14) { left: 70%; animation-duration: 8s; animation-delay: 0.3s; font-size: 1.2rem; }
-.snowflake:nth-child(15) { left: 90%; animation-duration: 14s; animation-delay: 2.8s; font-size: 0.8rem; }
+@keyframes heartbeat {
+  0%, 100% { transform: scale(1); }
+  25% { transform: scale(1.1); }
+  50% { transform: scale(1); }
+  75% { transform: scale(1.05); }
+}
 
-/* Pulse animation for jackpot - Winter edition */
+/* Generate multiple hearts with different properties */
+.heart:nth-child(1) { left: 3%; animation-duration: 12s; animation-delay: 0s; font-size: 0.9rem; }
+.heart:nth-child(2) { left: 12%; animation-duration: 15s; animation-delay: 1.2s; font-size: 1.4rem; }
+.heart:nth-child(3) { left: 22%; animation-duration: 10s; animation-delay: 2.5s; font-size: 0.7rem; }
+.heart:nth-child(4) { left: 32%; animation-duration: 16s; animation-delay: 0.8s; font-size: 1.1rem; }
+.heart:nth-child(5) { left: 42%; animation-duration: 11s; animation-delay: 3.5s; font-size: 1rem; }
+.heart:nth-child(6) { left: 52%; animation-duration: 14s; animation-delay: 1.8s; font-size: 1.3rem; }
+.heart:nth-child(7) { left: 62%; animation-duration: 17s; animation-delay: 2.8s; font-size: 0.8rem; }
+.heart:nth-child(8) { left: 72%; animation-duration: 12s; animation-delay: 4.2s; font-size: 1.5rem; }
+.heart:nth-child(9) { left: 82%; animation-duration: 18s; animation-delay: 1s; font-size: 0.9rem; }
+.heart:nth-child(10) { left: 92%; animation-duration: 9s; animation-delay: 2.2s; font-size: 1.2rem; }
+.heart:nth-child(11) { left: 8%; animation-duration: 13s; animation-delay: 4s; font-size: 1rem; }
+.heart:nth-child(12) { left: 28%; animation-duration: 11s; animation-delay: 1.5s; font-size: 1.2rem; }
+.heart:nth-child(13) { left: 48%; animation-duration: 15s; animation-delay: 5s; font-size: 0.7rem; }
+.heart:nth-child(14) { left: 68%; animation-duration: 10s; animation-delay: 0.5s; font-size: 1.4rem; }
+.heart:nth-child(15) { left: 88%; animation-duration: 16s; animation-delay: 3s; font-size: 0.9rem; }
+.heart:nth-child(16) { left: 18%; animation-duration: 14s; animation-delay: 2s; font-size: 1.1rem; }
+.heart:nth-child(17) { left: 38%; animation-duration: 12s; animation-delay: 3.8s; font-size: 0.8rem; }
+.heart:nth-child(18) { left: 58%; animation-duration: 17s; animation-delay: 0.3s; font-size: 1.3rem; }
+.heart:nth-child(19) { left: 78%; animation-duration: 11s; animation-delay: 4.5s; font-size: 1rem; }
+.heart:nth-child(20) { left: 98%; animation-duration: 15s; animation-delay: 1.7s; font-size: 0.6rem; }
+
+/* Pulse animation for jackpot - Valentine edition */
 @keyframes jackpot-pulse {
   0%, 100% {
     transform: scale(1);
     text-shadow: 
-      0 0 5px var(--frost-silver),
-      0 0 10px var(--frost-silver);
+      0 0 5px var(--valentine-rose),
+      0 0 10px var(--valentine-crimson);
   }
   50% {
     transform: scale(1.02);
     text-shadow: 
-      0 0 10px var(--frost-silver),
-      0 0 20px var(--frost-silver),
-      0 0 30px var(--frost-silver);
+      0 0 10px var(--valentine-rose),
+      0 0 20px var(--valentine-pink),
+      0 0 30px var(--valentine-crimson);
   }
 }
 
@@ -235,18 +261,25 @@ body::before {
   animation: jackpot-pulse 2s ease-in-out infinite;
 }
 
-/* Frost crystal glow */
-@keyframes frost-glow {
+/* Love glow effect */
+@keyframes love-glow {
   0%, 100% {
     filter: brightness(1);
+    transform: scale(1);
   }
   50% {
     filter: brightness(1.3);
+    transform: scale(1.1);
   }
 }
 
-.frost-glow {
-  animation: frost-glow 3s ease-in-out infinite;
+.love-glow {
+  animation: love-glow 1.5s ease-in-out infinite;
+}
+
+/* Heartbeat animation for icons */
+.heartbeat {
+  animation: heartbeat 1.2s ease-in-out infinite;
 }
 
 /* Loading dots animation */
@@ -262,7 +295,7 @@ body::before {
   animation: loading-dots 1.5s steps(1) infinite;
 }
 
-/* Gradient border effect - Winter/Frost colors */
+/* Gradient border effect - Valentine colors */
 .gradient-border {
   position: relative;
 }
@@ -271,11 +304,11 @@ body::before {
   content: "";
   position: absolute;
   inset: -2px;
-  background: linear-gradient(45deg, var(--frost-blue), var(--frost-silver), var(--terminal-green), var(--frost-deep));
+  background: linear-gradient(45deg, var(--valentine-pink), var(--valentine-crimson), var(--valentine-rose), var(--valentine-deep), var(--valentine-hot));
   background-size: 300% 300%;
   border-radius: 10px;
   z-index: -1;
-  opacity: 0.6;
+  opacity: 0.7;
   animation: gradient-shift 4s ease infinite;
 }
 
@@ -285,17 +318,17 @@ body::before {
   100% { background-position: 0% 50%; }
 }
 
-/* Frost crystal styling */
-.frost-crystal {
-  color: var(--frost-blue);
-  text-shadow: 0 0 5px var(--frost-blue);
+/* Rose petal styling */
+.rose-petal {
+  color: var(--valentine-crimson);
+  text-shadow: 0 0 5px var(--valentine-crimson);
   line-height: 1.2;
 }
 
-/* Twinkling stars/crystals effect */
+/* Twinkling hearts/sparkle effect */
 @keyframes twinkle {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 1; }
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.2); }
 }
 
 .twinkle {
@@ -305,3 +338,30 @@ body::before {
 .twinkle-delay-1 { animation-delay: 0.5s; }
 .twinkle-delay-2 { animation-delay: 1s; }
 .twinkle-delay-3 { animation-delay: 1.5s; }
+
+/* Cupid arrow animation */
+@keyframes arrow-fly {
+  0% { transform: translateX(-20px) rotate(-15deg); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: translateX(20px) rotate(15deg); opacity: 0; }
+}
+
+.cupid-arrow {
+  animation: arrow-fly 3s ease-in-out infinite;
+}
+
+/* Romantic sparkle */
+@keyframes sparkle {
+  0%, 100% { 
+    opacity: 0;
+    transform: scale(0) rotate(0deg);
+  }
+  50% { 
+    opacity: 1;
+    transform: scale(1) rotate(180deg);
+  }
+}
+
+.sparkle {
+  animation: sparkle 2s ease-in-out infinite;
+}
