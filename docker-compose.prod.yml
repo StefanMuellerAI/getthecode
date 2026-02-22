@@ -140,15 +140,15 @@ services:
       - TEMPORAL_HOST=temporal
       - TEMPORAL_PORT=7233
       - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY must be set in .env}
-      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o}
+      - OPENAI_MODEL=${OPENAI_MODEL:?OPENAI_MODEL must be set in .env}
       - GEMINI_API_KEY=${GEMINI_API_KEY:?GEMINI_API_KEY must be set in .env}
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.1-pro}
+      - GEMINI_MODEL=${GEMINI_MODEL:?GEMINI_MODEL must be set in .env}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:?ANTHROPIC_API_KEY must be set in .env}
-      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-claude-opus-4.6}
-      - SECRET_CODE=${SECRET_CODE:-PLACEHOLDER}
+      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:?ANTHROPIC_MODEL must be set in .env}
+      - SECRET_CODE=${SECRET_CODE:?SECRET_CODE must be set in .env}
       - STATS_SECRET_KEY=${STATS_SECRET_KEY:?STATS_SECRET_KEY must be set in .env}
       - FRONTEND_URL=${FRONTEND_URL:?FRONTEND_URL must be set in .env}
-      - CORS_ORIGINS=${CORS_ORIGINS:-https://your-domain.com}
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://get-the-code.com}
       # PERFORMANCE: Redis for caching and distributed rate limiting
       - REDIS_URL=redis://redis:6379/0
       # PERFORMANCE: Adjust worker count based on instance
