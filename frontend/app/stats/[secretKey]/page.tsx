@@ -72,6 +72,7 @@ interface SearchResult {
   conversation_id: string;
   content: string;
   created_at: string | null;
+  result_type?: string;
 }
 
 type TabType = 'conversations' | 'codes' | 'claims' | 'status';
@@ -423,7 +424,7 @@ export default function StatsPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="🔍 Nachrichten durchsuchen..."
+              placeholder="🔍 Nachrichten oder Conversation-ID suchen..."
               className="bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 w-64 focus:border-terminal-cyan focus:outline-none transition-colors"
             />
             {isSearching && (
@@ -437,14 +438,19 @@ export default function StatsPage() {
               <div className="p-2 border-b border-[#30363d] text-xs text-terminal-green/50">
                 {searchResults.length} Treffer gefunden
               </div>
-              {searchResults.map((result) => (
+              {searchResults.map((result, idx) => (
                 <button
-                  key={result.id}
+                  key={`${result.result_type}-${result.conversation_id}-${idx}`}
                   onClick={() => handleSearchResultClick(result.conversation_id)}
                   className="w-full text-left p-3 hover:bg-terminal-cyan/10 border-b border-[#30363d] last:border-b-0 transition-colors"
                 >
                   <div className="flex justify-between items-start mb-1">
-                    <span className="font-mono text-xs text-terminal-cyan">{result.conversation_id}</span>
+                    <div className="flex items-center gap-2">
+                      {result.result_type === 'conversation' && (
+                        <span className="px-1.5 py-0.5 text-[10px] bg-terminal-cyan/20 text-terminal-cyan rounded font-bold">CONV</span>
+                      )}
+                      <span className="font-mono text-xs text-terminal-cyan">{result.conversation_id}</span>
+                    </div>
                     <span className="text-xs text-terminal-green/40">{formatDate(result.created_at)}</span>
                   </div>
                   <div className="text-sm text-terminal-green/80 line-clamp-2">

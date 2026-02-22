@@ -13,7 +13,7 @@ export default function Footer({ onClaimClick, showClaim = false }: FooterProps)
       {/* Divider */}
       <div className="flex items-center justify-center gap-4 mb-6">
         <div className="h-px flex-1 bg-gradient-to-r from-transparent via-terminal-green/30 to-transparent" />
-        <span className="text-terminal-green/40 text-xs">💕 💘 💕</span>
+        <span className="text-terminal-green/40 text-xs">🌿 🌸 🌿</span>
         <div className="h-px flex-1 bg-gradient-to-l from-transparent via-terminal-green/30 to-transparent" />
       </div>
 
@@ -47,7 +47,7 @@ export default function Footer({ onClaimClick, showClaim = false }: FooterProps)
 
         {/* Copyright */}
         <div className="text-center text-xs opacity-30">
-          <p>💕 Drei KI-Wächter. Ein Geheimnis. Kannst du ihr Herz erobern? 💝</p>
+          <p>🌿 Drei KI-Wächter. Ein Geheimnis. Kannst du es ernten? 🌱</p>
           <p className="mt-1">© 2026 Prompt Injection Challenge | StefanAI – Research & Development</p>
         </div>
       </div>

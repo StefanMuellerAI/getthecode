@@ -20,7 +20,8 @@ from app.config import get_settings
 from workflows.challenge_workflow import ChallengeWorkflow
 from workflows.activities import (
     generate_response,
-    referee_check,
+    referee_check_gemini,
+    referee_check_claude,
     log_code_leak,
     sanitize_input,
     create_conversation,
@@ -67,10 +68,12 @@ async def main():
     
     logger.info("Connected to Temporal")
     logger.info(f"Task Queue: {settings.temporal_task_queue}")
-    logger.info(f"OpenAI Model: {settings.openai_model}")
+    logger.info(f"Generator Model: {settings.openai_model}")
+    logger.info(f"Referee 1 Model: {settings.gemini_model} (Gemini)")
+    logger.info(f"Referee 2 Model: {settings.anthropic_model} (Claude)")
     # SECURITY: Do not log any information about the secret code (including length)
     logger.info("Secret code configured: [REDACTED]")
-    logger.info("Workflow: Parallel Referees + Final String Match")
+    logger.info("Workflow: Parallel Referees (Gemini + Claude) + Final String Match")
     logger.info(f"PERFORMANCE: Max concurrent activities: {MAX_CONCURRENT_ACTIVITIES}")
     logger.info(f"PERFORMANCE: Max concurrent workflows: {MAX_CONCURRENT_WORKFLOWS}")
     
@@ -83,7 +86,8 @@ async def main():
         workflows=[ChallengeWorkflow],
         activities=[
             generate_response,
-            referee_check,
+            referee_check_gemini,
+            referee_check_claude,
             log_code_leak,
             sanitize_input,
             create_conversation,

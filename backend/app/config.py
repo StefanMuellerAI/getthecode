@@ -26,9 +26,17 @@ class Settings(BaseSettings):
     temporal_namespace: str = "default"
     temporal_task_queue: str = "challenge-task-queue"
     
-    # OpenAI
+    # OpenAI (Generator)
     openai_api_key: str = ""
     openai_model: str = "gpt-4o"
+    
+    # Gemini (Referee 1)
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-3.1-pro-preview"
+    
+    # Anthropic (Referee 2)
+    anthropic_api_key: str = ""
+    anthropic_model: str = "claude-opus-4-6"
     
     # Secret Code
     secret_code: str = "DEV-TEST-CODE-1234"
@@ -96,6 +104,14 @@ class Settings(BaseSettings):
                 raise ValueError("OPENAI_API_KEY must be provided in production")
             if not self.openai_api_key.startswith("sk-"):
                 raise ValueError("Invalid OpenAI API key format in production")
+            
+            # Validate Gemini API key (Referee 1)
+            if not self.gemini_api_key:
+                raise ValueError("GEMINI_API_KEY must be provided in production")
+            
+            # Validate Anthropic API key (Referee 2)
+            if not self.anthropic_api_key:
+                raise ValueError("ANTHROPIC_API_KEY must be provided in production")
             
             # Validate stats secret key
             if not self.stats_secret_key or "dev" in self.stats_secret_key.lower():

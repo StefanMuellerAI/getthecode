@@ -89,6 +89,11 @@ services:
       - TEMPORAL_HOST=temporal
       - TEMPORAL_PORT=7233
       - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY must be set in .env}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.1-pro}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-claude-opus-4.6}
       - SECRET_CODE=${SECRET_CODE:-PLACEHOLDER}
       - STATS_SECRET_KEY=${STATS_SECRET_KEY:?STATS_SECRET_KEY must be set in .env}
       - FRONTEND_URL=${FRONTEND_URL:?FRONTEND_URL must be set in .env}
@@ -135,6 +140,11 @@ services:
       - TEMPORAL_HOST=temporal
       - TEMPORAL_PORT=7233
       - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY must be set in .env}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.1-pro}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-claude-opus-4.6}
       - SECRET_CODE=${SECRET_CODE:-PLACEHOLDER}
       - STATS_SECRET_KEY=${STATS_SECRET_KEY:?STATS_SECRET_KEY must be set in .env}
       - FRONTEND_URL=${FRONTEND_URL:?FRONTEND_URL must be set in .env}

@@ -49,11 +49,11 @@ export default function JackpotCounter() {
     return (
       <div className="terminal-window p-6 text-center">
         <div className="flex justify-center items-center gap-2 mb-2">
-          <span className="text-2xl">💝</span>
+          <span className="text-2xl">🌻</span>
           <span className="text-xs text-terminal-cyan opacity-70 uppercase tracking-widest">
             Jackpot
           </span>
-          <span className="text-2xl">💝</span>
+          <span className="text-2xl">🌻</span>
         </div>
         <div className="text-3xl font-bold text-gray-500 animate-pulse">
           Laden...
@@ -65,15 +65,15 @@ export default function JackpotCounter() {
   return (
     <div className="terminal-window p-6 text-center gradient-border">
       <div className="flex justify-center items-center gap-2 mb-2">
-        <span className="text-2xl love-glow">💝</span>
+        <span className="text-2xl spring-glow">🌻</span>
         <span className="text-xs text-terminal-cyan opacity-70 uppercase tracking-widest">
-          Valentine-Jackpot
+          Frühlings-Jackpot
         </span>
-        <span className="text-2xl love-glow" style={{ animationDelay: '0.6s' }}>💝</span>
+        <span className="text-2xl spring-glow" style={{ animationDelay: '0.6s' }}>🌻</span>
       </div>
       
       <div className="jackpot-pulse">
-        <span className="text-5xl md:text-7xl font-bold text-[#ffb6c1] font-['Orbitron']">
+        <span className="text-5xl md:text-7xl font-bold text-[#7ec850] font-['Orbitron']">
           {jackpot.amount.toLocaleString('de-DE')}€
         </span>
       </div>
@@ -93,11 +93,11 @@ export default function JackpotCounter() {
         ) : jackpot.game_status === 'won' ? (
           <span className="text-yellow-400">🏆 Gewonnen!</span>
         ) : jackpot.game_status === 'pending_claim' ? (
-          <span className="text-pink-400">⏳ Claim wird geprüft</span>
+          <span className="text-amber-400">⏳ Claim wird geprüft</span>
         ) : jackpot.game_status === 'redeemed' ? (
           <span className="text-gray-400">⏸️ Eingelöst - warte auf neue Codes</span>
         ) : (
-          <span className="text-[#ff69b4]">💕 Noch nicht erobert</span>
+          <span className="text-[#00d26a]">🌱 Noch nicht geerntet</span>
         )}
       </div>
     </div>

@@ -57,7 +57,7 @@ const ChallengeForm = forwardRef<ChallengeFormRef, ChallengeFormProps>(
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Dein Prompt an Amors KI..."
+              placeholder="Dein Prompt an die Garten-KI..."
               disabled={isLoading}
               rows={1}
               className="terminal-input min-h-[24px] max-h-[200px] disabled:opacity-50"
@@ -106,7 +106,7 @@ const ChallengeForm = forwardRef<ChallengeFormRef, ChallengeFormProps>(
                 Prüfe...
               </span>
             ) : (
-              '💘 Senden'
+              '🌱 Senden'
             )}
           </button>
         </div>

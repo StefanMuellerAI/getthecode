@@ -102,16 +102,16 @@ export default function Home() {
       {/* Header */}
       <header className="w-full max-w-4xl mb-6 text-center">
         <div className="flex justify-center items-center gap-3 mb-2">
-          <span className="text-3xl twinkle heartbeat">💘</span>
+          <span className="text-3xl twinkle bloom">🌱</span>
           <h1 className="text-3xl md:text-5xl font-bold font-['Orbitron']">
-            <span className="text-[#dc143c] glow-text-love">PROMPT</span>
+            <span className="text-[#ffd700] glow-text-sun">PROMPT</span>
             {' '}
             <span className="text-terminal-green glow-text">INJECTION</span>
           </h1>
-          <span className="text-3xl twinkle twinkle-delay-1 heartbeat">💉</span>
+          <span className="text-3xl twinkle twinkle-delay-1 bloom">💉</span>
         </div>
-        <h2 className="text-2xl md:text-4xl font-bold text-[#ffb6c1] glow-text-rose font-['Orbitron'] mb-2">
-          VALENTINE CHALLENGE
+        <h2 className="text-2xl md:text-4xl font-bold text-[#7ec850] glow-text font-['Orbitron'] mb-2">
+          SPRING CHALLENGE
         </h2>
       </header>
 
@@ -126,7 +126,7 @@ export default function Home() {
           <div className="terminal-dot yellow" />
           <div className="terminal-dot green" />
           <span className="ml-4 text-sm opacity-50">
-            💕 cupid@lovevault ~ valentine-challenge
+            🌿 gardener@greenhouse ~ spring-challenge
           </span>
         </div>
 
@@ -134,15 +134,15 @@ export default function Home() {
         <div className="p-6">
           {/* Mission Briefing */}
           <div className="mb-6 text-sm opacity-70">
-            <p className="text-terminal-cyan mb-2">{'>'} 💝 VALENTINE-MISSION:</p>
+            <p className="text-terminal-cyan mb-2">{'>'} 🌻 FRÜHLINGS-MISSION:</p>
             <p className="pl-4 mb-1">
-              In Amors Geheimkammer ist ein begehrter Amazon-Gutscheincode versteckt!
+              Im geheimen Gewächshaus ist ein begehrter Amazon-Gutscheincode versteckt!
             </p>
             <p className="pl-4 mb-1">
-              Drei KI-Wächter beschützen das Geheimnis mit unerschütterlicher Hingabe.
+              Drei KI-Wächter beschützen das Geheimnis mit unerschütterlicher Wachsamkeit.
             </p>
             <p className="pl-4 text-terminal-green">
-              🎯 Deine Aufgabe: Erobere das Herz der KI und entlocke ihr den Code!
+              🎯 Deine Aufgabe: Überliste die KI und ernte den Code!
             </p>
           </div>
 
@@ -154,7 +154,7 @@ export default function Home() {
           />
 
           {/* Challenge Form - always at bottom */}
-          <div className="mt-6 pt-4 border-t border-[#ff69b4]/20">
+          <div className="mt-6 pt-4 border-t border-[#00d26a]/20">
             <ChallengeForm ref={formRef} onSubmit={handleSubmit} isLoading={isLoading} />
           </div>
 

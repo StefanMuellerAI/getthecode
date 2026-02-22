@@ -18,19 +18,15 @@ with workflow.unsafe.imports_passed_through():
         ConversationMessage,
         SaveMessageInput,
         CreateConversationInput,
-        CreateRedemptionInput,
-        CreateRedemptionOutput,
-        GameStatusInput,
         GameStatusOutput,
         get_placeholder_secret_code,
         generate_response,
-        referee_check,
+        referee_check_gemini,
+        referee_check_claude,
         log_code_leak,
         sanitize_input,
         save_message,
         create_conversation,
-        create_redemption,
-        update_game_status,
         check_game_status,
     )
     from app.config import get_settings
@@ -47,21 +43,6 @@ class ChallengeWorkflowInput:
 
 # Standard rejection message when code leak is detected
 REJECTION_MESSAGE = "Netter Versuch! Aber so einfach gebe ich den Code nicht her. 🛡️"
-
-# Winner message template - {redeem_link} will be replaced with actual link
-WINNER_MESSAGE = """🎉 **HERZLICHEN GLÜCKWUNSCH!** 🎉
-
-Du hast es tatsächlich geschafft! Du hast mich überlistet und den Code geknackt!
-
-Du hast gewonnen: **{jackpot_value}€ in Amazon-Gutscheinen!**
-
-**WICHTIG:** Klicke auf diesen Link, um deinen Gewinn einzulösen:
-👉 {redeem_link}
-
-⚠️ Der Link ist **24 Stunden** gültig und kann nur **einmal** verwendet werden!
-📸 Mach am besten einen Screenshot der Codes!
-
-Gratulation, du bist ein wahrer Code-Knacker! 🏆"""
 
 # Game offline message
 GAME_OFFLINE_MESSAGE = """⏸️ Das Spiel ist momentan pausiert.
@@ -396,15 +377,15 @@ class ChallengeWorkflow:
             referee_id=3
         )
         
-        # Execute both referee checks in parallel
+        # Execute both referee checks in parallel (different providers)
         referee2_handle = workflow.start_activity(
-            referee_check,
+            referee_check_gemini,
             referee2_input,
             **activity_options
         )
         
         referee3_handle = workflow.start_activity(
-            referee_check,
+            referee_check_claude,
             referee3_input,
             **activity_options
         )
@@ -484,11 +465,10 @@ class ChallengeWorkflow:
         code_found = check_code_in_response(ai_response, placeholder_code)
         
         if code_found:
-            # 🎉 DER NUTZER HAT GEWONNEN!
-            # Die KI hat den Platzhalter-Code verraten und die Referees haben es nicht bemerkt.
-            workflow.logger.warning("🎉 CODE DETECTED BY STRING MATCH! User has WON! Creating redemption...")
+            # Code leaked past both referees -- log for stats but let chat continue.
+            # The user must file a manual claim to redeem.
+            workflow.logger.warning("⚠️ CODE DETECTED BY STRING MATCH! Logging for stats (no auto-win).")
             
-            # Log den Gewinn in die Datenbank
             await workflow.execute_activity(
                 log_code_leak,
                 CodeLeakLogInput(
@@ -498,27 +478,7 @@ class ChallengeWorkflow:
                     referee2_reasoning=referee2_result.reasoning,
                     referee3_decision=referee3_result.decision,
                     referee3_reasoning=referee3_result.reasoning,
-                    detection_method="string_match_winner"
-                ),
-                **activity_options
-            )
-            
-            # Create redemption token for the winner
-            redemption_result: CreateRedemptionOutput = await workflow.execute_activity(
-                create_redemption,
-                CreateRedemptionInput(
-                    conversation_id=conversation_id,
-                    detection_method="automatic"
-                ),
-                **activity_options
-            )
-            
-            # Update game status to "won"
-            await workflow.execute_activity(
-                update_game_status,
-                GameStatusInput(
-                    status="won",
-                    winner_conversation_id=conversation_id
+                    detection_method="string_match"
                 ),
                 **activity_options
             )
@@ -535,40 +495,26 @@ class ChallengeWorkflow:
                 **activity_options
             )
             
-            # Build winner message with redemption link
-            if redemption_result.success and redemption_result.token:
-                redeem_link = f"{settings.frontend_url}/redeem/{redemption_result.token}"
-                winner_response = WINNER_MESSAGE.format(
-                    jackpot_value=redemption_result.jackpot_value,
-                    redeem_link=redeem_link
-                )
-            else:
-                # Fallback if redemption creation failed
-                winner_response = (
-                    "🎉 Du hast gewonnen! Allerdings gab es ein technisches Problem. "
-                    "Bitte kontaktiere den Support mit deiner Conversation-ID: " + conversation_id
-                )
-            
-            # STATS: Save winning assistant response
+            # STATS: Save the original AI response (flagged as code_detected)
             await workflow.execute_activity(
                 save_message,
                 SaveMessageInput(
                     conversation_id=conversation_id,
                     role="assistant",
-                    content=winner_response,
+                    content=ai_response,
                     referee2_decision=referee2_result.decision,
                     referee2_reasoning=referee2_result.reasoning,
                     referee3_decision=referee3_result.decision,
                     referee3_reasoning=referee3_result.reasoning,
                     code_detected=True,
-                    detection_method="string_match_winner"
+                    detection_method="string_match"
                 ),
                 **activity_options
             )
             
-            # Return winner message with redemption link
-            workflow.logger.info("✓ Returning winner response with redemption link")
-            return winner_response
+            # Return the original response -- user sees the leaked code but must claim manually
+            workflow.logger.info("✓ Returning original response (code leaked, user must claim)")
+            return ai_response
         
         # ============================================
         # ALL CHECKS PASSED - Return response

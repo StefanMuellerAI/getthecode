@@ -52,9 +52,9 @@ function LoadingIndicator() {
   return (
     <div className="flex items-center gap-3">
       <div className="flex gap-1">
-        <div className="w-2 h-2 bg-[#ff69b4] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-        <div className="w-2 h-2 bg-[#dc143c] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-        <div className="w-2 h-2 bg-[#ffb6c1] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+        <div className="w-2 h-2 bg-[#00d26a] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+        <div className="w-2 h-2 bg-[#7ec850] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+        <div className="w-2 h-2 bg-[#ffd700] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
       </div>
       <span className="text-sm opacity-70">Die KI-Wächter beraten sich...</span>
     </div>
@@ -103,8 +103,8 @@ export default function ChatMessages({ messages, isLoading, onTypingComplete }: 
                 className={`
                   max-w-[85%] rounded-lg p-4 
                   ${isUser 
-                    ? 'bg-[#3d0a1a]/40 border border-[#dc143c]/30 text-[#ffb6c1]' 
-                    : 'bg-[#1a0a10] border border-[#6a2d4f]/50 text-terminal-green'
+                    ? 'bg-[#0d1a0d]/40 border border-[#2d8f4e]/30 text-[#7ec850]' 
+                    : 'bg-[#0a140a] border border-[#1a3a1a]/50 text-terminal-green'
                   }
                 `}
               >
@@ -117,8 +117,8 @@ export default function ChatMessages({ messages, isLoading, onTypingComplete }: 
                     </>
                   ) : (
                     <>
-                      <span>💘</span>
-                      <span>Amors KI</span>
+                      <span>🌿</span>
+                      <span>Garten-KI</span>
                     </>
                   )}
                 </div>
@@ -139,10 +139,10 @@ export default function ChatMessages({ messages, isLoading, onTypingComplete }: 
         {/* Loading State */}
         {isLoading && (
           <div className="flex justify-start">
-            <div className="max-w-[85%] rounded-lg p-4 bg-[#1a0a10] border border-[#6a2d4f]/50">
+            <div className="max-w-[85%] rounded-lg p-4 bg-[#0a140a] border border-[#1a3a1a]/50">
               <div className="flex items-center gap-2 mb-2 text-xs opacity-60">
-                <span>💘</span>
-                <span>Amors KI</span>
+                <span>🌿</span>
+                <span>Garten-KI</span>
               </div>
               <LoadingIndicator />
             </div>
@@ -152,10 +152,10 @@ export default function ChatMessages({ messages, isLoading, onTypingComplete }: 
       
       {/* Security Badge - outside scroll area */}
       {messages.length > 0 && !isLoading && (
-        <div className="flex items-center justify-center gap-2 text-xs opacity-30 pt-3 mt-2 border-t border-[#ff69b4]/10">
-          <span>💕</span>
-          <span>Alle Antworten werden durch Amors Sicherheitssystem geprüft</span>
-          <span>💕</span>
+        <div className="flex items-center justify-center gap-2 text-xs opacity-30 pt-3 mt-2 border-t border-[#00d26a]/10">
+          <span>🌿</span>
+          <span>Alle Antworten werden durch das Sicherheitssystem geprüft</span>
+          <span>🌿</span>
         </div>
       )}
     </div>

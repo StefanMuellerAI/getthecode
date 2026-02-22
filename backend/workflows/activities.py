@@ -1,13 +1,19 @@
-"""Temporal activities for OpenAI interactions.
+"""Temporal activities for AI interactions.
 
-PERFORMANCE: Optimized with singleton OpenAI client and connection pooling
+PERFORMANCE: Optimized with singleton clients and connection pooling
 to handle thousands of concurrent requests efficiently.
+
+Generator: OpenAI (GPT)
+Referee 1: Google Gemini
+Referee 2: Anthropic Claude
 """
 import re
 import unicodedata
 from dataclasses import dataclass, field
 from temporalio import activity
 from openai import AsyncOpenAI
+from google import genai
+from anthropic import AsyncAnthropic
 import asyncpg
 from asyncpg import Pool
 
@@ -15,12 +21,12 @@ from app.config import get_settings
 
 settings = get_settings()
 
-# PERFORMANCE: Singleton OpenAI client - reused across all activity invocations
-# The OpenAI SDK handles connection pooling internally via httpx
+# PERFORMANCE: Singleton clients - reused across all activity invocations
 _openai_client: AsyncOpenAI | None = None
+_gemini_client: genai.Client | None = None
+_anthropic_client: AsyncAnthropic | None = None
 
 # PERFORMANCE: Database connection pool for activities
-# Separate from the FastAPI pool since workers run in different processes
 _activity_db_pool: Pool | None = None
 
 
@@ -195,16 +201,27 @@ ZU PRÜFENDE KI-ANTWORT:
 
 
 def get_openai_client() -> AsyncOpenAI:
-    """Get or create a singleton OpenAI client.
-    
-    PERFORMANCE: Reuses the same client instance across all activities,
-    avoiding the overhead of creating new HTTP connections per request.
-    The OpenAI SDK's httpx client handles connection pooling internally.
-    """
+    """Get or create a singleton OpenAI client (for Generator)."""
     global _openai_client
     if _openai_client is None:
         _openai_client = AsyncOpenAI(api_key=settings.openai_api_key)
     return _openai_client
+
+
+def get_gemini_client() -> genai.Client:
+    """Get or create a singleton Gemini client (for Referee 1)."""
+    global _gemini_client
+    if _gemini_client is None:
+        _gemini_client = genai.Client(api_key=settings.gemini_api_key)
+    return _gemini_client
+
+
+def get_anthropic_client() -> AsyncAnthropic:
+    """Get or create a singleton Anthropic client (for Referee 2)."""
+    global _anthropic_client
+    if _anthropic_client is None:
+        _anthropic_client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+    return _anthropic_client
 
 
 async def get_activity_db_pool() -> Pool:
@@ -254,7 +271,7 @@ async def generate_response(input: GeneratorInput) -> GeneratorOutput:
         model=settings.openai_model,
         messages=messages,
         temperature=0.7,
-        max_tokens=1000
+        max_completion_tokens=1000
     )
     
     ai_response = response.choices[0].message.content or ""
@@ -264,33 +281,8 @@ async def generate_response(input: GeneratorInput) -> GeneratorOutput:
     return GeneratorOutput(response=ai_response)
 
 
-@activity.defn
-async def referee_check(input: RefereeInput) -> RefereeOutput:
-    """
-    Request 2 or 3: Referee checks if the response violates rules.
-    Returns PASS if safe, STOP if code might be leaked.
-    """
-    client = get_openai_client()
-    
-    system_prompt = REFEREE_SYSTEM_PROMPT.format(
-        secret_code=input.secret_code,
-        user_prompt=input.user_prompt,
-        ai_response=input.ai_response
-    )
-    
-    response = await client.chat.completions.create(
-        model=settings.openai_model,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": "Prüfe die KI-Antwort und gib deine Entscheidung ab."}
-        ],
-        temperature=0.1,  # Low temperature for consistent decisions
-        max_tokens=500
-    )
-    
-    result = response.choices[0].message.content or ""
-    
-    # Parse the decision
+def _parse_referee_result(result: str, referee_id: int) -> RefereeOutput:
+    """Parse a referee response into a structured decision."""
     decision = "STOP"  # Default to STOP for safety
     reasoning = result
     
@@ -299,13 +291,68 @@ async def referee_check(input: RefereeInput) -> RefereeOutput:
     elif "ENTSCHEIDUNG: STOP" in result.upper() or "ENTSCHEIDUNG:STOP" in result.upper():
         decision = "STOP"
     
-    # Extract reasoning if present
     if "BEGRÜNDUNG:" in result:
         reasoning = result.split("BEGRÜNDUNG:")[-1].strip()
     
-    activity.logger.info(f"Referee {input.referee_id} decision: {decision}")
-    
+    activity.logger.info(f"Referee {referee_id} decision: {decision}")
     return RefereeOutput(decision=decision, reasoning=reasoning)
+
+
+@activity.defn
+async def referee_check_gemini(input: RefereeInput) -> RefereeOutput:
+    """
+    Referee 1 (Gemini): Checks if the response violates rules.
+    Returns PASS if safe, STOP if code might be leaked.
+    """
+    client = get_gemini_client()
+    
+    system_prompt = REFEREE_SYSTEM_PROMPT.format(
+        secret_code=input.secret_code,
+        user_prompt=input.user_prompt,
+        ai_response=input.ai_response
+    )
+    
+    full_prompt = system_prompt + "\n\nPrüfe die KI-Antwort und gib deine Entscheidung ab."
+    
+    response = client.models.generate_content(
+        model=settings.gemini_model,
+        contents=full_prompt,
+        config=genai.types.GenerateContentConfig(
+            temperature=0.1,
+            max_output_tokens=500,
+        ),
+    )
+    
+    result = response.text or ""
+    return _parse_referee_result(result, input.referee_id)
+
+
+@activity.defn
+async def referee_check_claude(input: RefereeInput) -> RefereeOutput:
+    """
+    Referee 2 (Claude): Checks if the response violates rules.
+    Returns PASS if safe, STOP if code might be leaked.
+    """
+    client = get_anthropic_client()
+    
+    system_prompt = REFEREE_SYSTEM_PROMPT.format(
+        secret_code=input.secret_code,
+        user_prompt=input.user_prompt,
+        ai_response=input.ai_response
+    )
+    
+    response = await client.messages.create(
+        model=settings.anthropic_model,
+        max_tokens=500,
+        temperature=0.1,
+        system=system_prompt,
+        messages=[
+            {"role": "user", "content": "Prüfe die KI-Antwort und gib deine Entscheidung ab."}
+        ],
+    )
+    
+    result = response.content[0].text if response.content else ""
+    return _parse_referee_result(result, input.referee_id)
 
 
 @activity.defn

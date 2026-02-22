@@ -16,6 +16,7 @@ from app.database import (
     get_conversation_messages,
     get_conversation_count,
     search_user_messages,
+    search_conversations,
     get_all_gift_codes,
     add_gift_code,
     get_all_claims,
@@ -168,6 +169,7 @@ class SearchResultItem(BaseModel):
     conversation_id: str
     content: str
     created_at: Optional[str]
+    result_type: str = "message"
 
 
 class SearchResponse(BaseModel):
@@ -292,20 +294,36 @@ async def search_messages(
     q: str = Query(..., min_length=2, max_length=100, description="Search query")
 ):
     """
-    Search user messages for a given query string.
+    Search user messages and conversation IDs for a given query string.
     
-    Only searches in user messages (role = 'user').
-    Returns matching messages with conversation links.
+    Conversation ID matches appear first, followed by message content matches.
     """
     verify_secret_key(secret_key)
     
     try:
-        results = await search_user_messages(query=q, limit=50)
+        all_results: list[SearchResultItem] = []
+        
+        # Search conversations by ID
+        conv_results = await search_conversations(query=q, limit=20)
+        for conv in conv_results:
+            leak_flag = " [LEAK]" if conv["has_code_leak"] else ""
+            all_results.append(SearchResultItem(
+                id=0,
+                conversation_id=conv["id"],
+                content=f"Conversation ({conv['message_count']} Nachrichten){leak_flag}",
+                created_at=conv["created_at"],
+                result_type="conversation",
+            ))
+        
+        # Search message contents
+        msg_results = await search_user_messages(query=q, limit=50)
+        for r in msg_results:
+            all_results.append(SearchResultItem(**r, result_type="message"))
         
         return SearchResponse(
-            results=[SearchResultItem(**r) for r in results],
+            results=all_results,
             query=q,
-            count=len(results)
+            count=len(all_results)
         )
     except Exception as e:
         logger.error(f"Failed to search messages: {e}", exc_info=True)

@@ -275,9 +275,9 @@ export default function ClaimModal({ conversationId, onClose }: ClaimModalProps)
                     type="button"
                     onClick={handleSendCode}
                     disabled={!isValidEmail(email) || sendingCode || isSubmitting}
-                    className="px-4 py-3 bg-[#ff69b4] text-black font-medium rounded-lg hover:bg-[#ff69b4]/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                    className="px-4 py-3 bg-[#00d26a] text-black font-medium rounded-lg hover:bg-[#00d26a]/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                   >
-                    {sendingCode ? '⏳' : codeSent ? '🔄 Erneut' : '💌 Code senden'}
+                    {sendingCode ? '⏳' : codeSent ? '🔄 Erneut' : '📧 Code senden'}
                   </button>
                 )}
                 {emailVerified && (
@@ -293,9 +293,9 @@ export default function ClaimModal({ conversationId, onClose }: ClaimModalProps)
 
             {/* Verification Code Input - only show if code was sent and not yet verified */}
             {codeSent && !emailVerified && (
-              <div className="bg-[#1a0a10] border border-[#ff69b4]/30 rounded-lg p-4">
-                <label className="block text-sm text-[#ff69b4] mb-2">
-                  💌 Verifizierungscode eingeben
+              <div className="bg-[#0a1a0a] border border-[#00d26a]/30 rounded-lg p-4">
+                <label className="block text-sm text-[#00d26a] mb-2">
+                  📧 Verifizierungscode eingeben
                 </label>
                 <div className="flex gap-2">
                   <input
@@ -307,7 +307,7 @@ export default function ClaimModal({ conversationId, onClose }: ClaimModalProps)
                       setVerificationCode(value);
                     }}
                     placeholder="6-stelliger Code"
-                    className="flex-1 bg-[#0d1117] border border-[#30363d] rounded-lg px-4 py-3 text-white font-mono text-center text-xl tracking-widest focus:border-[#ff69b4] focus:outline-none"
+                    className="flex-1 bg-[#0d1117] border border-[#30363d] rounded-lg px-4 py-3 text-white font-mono text-center text-xl tracking-widest focus:border-[#00d26a] focus:outline-none"
                     maxLength={6}
                     disabled={verifyingCode}
                   />
@@ -315,7 +315,7 @@ export default function ClaimModal({ conversationId, onClose }: ClaimModalProps)
                     type="button"
                     onClick={handleVerifyCode}
                     disabled={verificationCode.length !== 6 || verifyingCode}
-                    className="px-4 py-3 bg-[#ff69b4] text-black font-medium rounded-lg hover:bg-[#ff69b4]/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-4 py-3 bg-[#00d26a] text-black font-medium rounded-lg hover:bg-[#00d26a]/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {verifyingCode ? '⏳' : '✓ Prüfen'}
                   </button>
@@ -349,7 +349,7 @@ export default function ClaimModal({ conversationId, onClose }: ClaimModalProps)
             </div>
 
             {/* Info Box */}
-            <div className="bg-pink-500/10 border border-pink-500/30 rounded-lg p-3 text-sm text-pink-300">
+            <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-sm text-green-300">
               <p className="flex items-start gap-2">
                 <span>ℹ️</span>
                 <span>
@@ -372,9 +372,9 @@ export default function ClaimModal({ conversationId, onClose }: ClaimModalProps)
               <button
                 type="submit"
                 disabled={isSubmitting || !claimedCode.trim() || !emailVerified}
-                className="flex-1 px-4 py-3 bg-gradient-to-r from-pink-500 to-rose-500 text-white font-bold rounded-lg hover:from-pink-400 hover:to-rose-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold rounded-lg hover:from-green-400 hover:to-emerald-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isSubmitting ? '⏳ Senden...' : '💝 Anspruch einreichen'}
+                {isSubmitting ? '⏳ Senden...' : '🌱 Anspruch einreichen'}
               </button>
             </div>
           </form>

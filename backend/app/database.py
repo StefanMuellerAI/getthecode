@@ -400,6 +400,43 @@ async def search_user_messages(query: str, limit: int = 50) -> list[dict]:
     return results
 
 
+async def search_conversations(query: str, limit: int = 20) -> list[dict]:
+    """Search conversations by ID (partial match).
+    
+    Args:
+        query: Partial conversation ID to search for (case-insensitive)
+        limit: Maximum number of results to return
+        
+    Returns:
+        List of matching conversations with id, message_count, has_code_leak, created_at
+    """
+    if not query or len(query) < 2:
+        return []
+    
+    async with get_connection() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, message_count, has_code_leak, created_at
+            FROM conversations
+            WHERE LOWER(id) LIKE $1
+            ORDER BY created_at DESC
+            LIMIT $2
+            """,
+            f"%{query.lower()}%",
+            limit
+        )
+        
+        return [
+            {
+                "id": row["id"],
+                "message_count": row["message_count"],
+                "has_code_leak": row["has_code_leak"],
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None
+            }
+            for row in rows
+        ]
+
+
 # ===========================================
 # GIFT CODE REDEMPTION SYSTEM
 # ===========================================
